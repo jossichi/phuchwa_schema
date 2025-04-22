@@ -6,7 +6,7 @@
         "jsonSchema": {
           "_id": {
             "type": "string",
-            "description": "ID duy nhất của người dùng."
+            "description": "ID duy nhất của người dùng do mongoDB tạo."
           },
           "user_id": {
             "type": "string",
@@ -17,18 +17,29 @@
             "type": "string",
             "enum": ["nurse", "elderly"],
             "description": "Vai trò của người dùng: nurse (y tá) hoặc elderly (người cao tuổi)."
+          },
+          "email": {
+            "type": "string",
+            "description": "Email người dùng dùng để xác minh tài khoản."
+          },
+          "email_verified": {
+            "type": "boolean",
+            "default": false,
+            "description": "Trạng thái xác minh email. Phải là true để hoàn tất đăng ký."
           }
         },
         "jsonSample": [
           {
-            "_id": "user_001",
             "user_id": "CARD123456",
-            "role": "nurse"
+            "role": "nurse",
+            "email": "nurse@example.com",
+            "email_verified": false
           },
           {
-            "_id": "user_002",
-            "card_id": "QR789012",
-            "role": "elderly"
+            "user_id": "QR789012",
+            "role": "elderly",
+            "email": "elderly@example.com",
+            "email_verified": true
           }
         ]
       }
@@ -40,14 +51,14 @@
             "pipeline": [
               {
                 "$match": {
-                  "user_id": "uuid_generate_v4()",
+                  "email_verified": true,
                   "role": { "$in": ["nurse", "elderly"] }
                 }
               },
               {
                 "$merge": {
                   "into": "users",
-                  "on": "_id",
+                  "on": "user_id",
                   "whenMatched": "merge",
                   "whenNotMatched": "insert"
                 }
@@ -57,27 +68,6 @@
                   "elderly_data": [
                     {
                       "$match": { "role": "elderly" }
-                    },
-                    {
-                      "$lookup": {
-                        "from": "registration_requests",
-                        "localField": "user_id",
-                        "foreignField": "user_id",
-                        "as": "elderly_registration"
-                      }
-                    },
-                    {
-                      "$addFields": {
-                        "email": {
-                          "$arrayElemAt": ["$elderly_registration.email", 0]
-                        },
-                        "hashed_password": {
-                          "$arrayElemAt": [
-                            "$elderly_registration.hashed_password",
-                            0
-                          ]
-                        }
-                      }
                     },
                     {
                       "$merge": {
@@ -93,36 +83,6 @@
                       "$match": { "role": "nurse" }
                     },
                     {
-                      "$lookup": {
-                        "from": "registration_requests",
-                        "localField": "user_id",
-                        "foreignField": "user_id",
-                        "as": "nurse_registration"
-                      }
-                    },
-                    {
-                      "$addFields": {
-                        "student_id": {
-                          "$arrayElemAt": ["$nurse_registration.student_id", 0]
-                        },
-                        "card_id": {
-                          "$arrayElemAt": ["$nurse_registration.card_id", 0]
-                        },
-                        "public_key": {
-                          "$arrayElemAt": ["$nurse_registration.public_key", 0]
-                        },
-                        "private_key_encrypted": {
-                          "$arrayElemAt": [
-                            "$nurse_registration.private_key_encrypted",
-                            0
-                          ]
-                        },
-                        "signature": {
-                          "$arrayElemAt": ["$nurse_registration.signature", 0]
-                        }
-                      }
-                    },
-                    {
                       "$merge": {
                         "into": "nurses",
                         "on": "user_id",
@@ -134,7 +94,7 @@
                 }
               }
             ],
-            "purpose": "Pipeline for updating user login/logout status.",
+            "purpose": "Chỉ đồng bộ khi email đã được xác minh.",
             "data_input_from_node": [],
             "data_output_to_node": "nurses, elderlies"
           }
@@ -144,13 +104,12 @@
     "personal": {
       "node_info": {
         "name": "User Management",
-        "author": "HAO",
-        "version": "2.0",
+        "author": "LOC",
+        "version": "2.2",
         "year": "2025"
       }
     }
   },
-
   {
     "_id": "nurses",
     "public": {
@@ -459,7 +418,7 @@
     "personal": {
       "node_info": {
         "name": "Nurse Management",
-        "author": "HAO",
+        "author": "LOCLOC",
         "version": "2.0",
         "year": "2025"
       }
@@ -484,6 +443,11 @@
             "hashed_password": {
               "type": "string",
               "description": "Mật khẩu băm của người cao tuổi."
+            },
+            "is_email_verified": {
+              "type": "boolean",
+              "default": false,
+              "description": "Trạng thái xác thực email (true nếu đã xác thực, false nếu chưa)."
             },
             "biometricData": { "type": "string" },
             "current_address": { "type": "string" },
@@ -630,7 +594,7 @@
     "personal": {
       "node_info": {
         "name": "Elderly Management",
-        "author": "HAO",
+        "author": "LOC",
         "version": "2.0",
         "year": "2025"
       }
@@ -1066,7 +1030,7 @@
     "personal": {
       "node_info": {
         "name": "Test Attempt Management",
-        "author": "HAO",
+        "author": "LOC",
         "version": "2.0",
         "year": "2025"
       }
@@ -1157,7 +1121,7 @@
     "personal": {
       "node_info": {
         "name": "Survey Attempt Management",
-        "author": "HAO",
+        "author": "LOC",
         "version": "2.0",
         "year": "2025"
       }
@@ -1294,7 +1258,7 @@
     "personal": {
       "node_info": {
         "name": "Transaction Management",
-        "author": "HAO",
+        "author": "LOC",
         "version": "2.0",
         "year": "2025"
       }
@@ -1431,7 +1395,7 @@
     "personal": {
       "node_info": {
         "name": "Matching Management",
-        "author": "HAO",
+        "author": "LOC",
         "version": "2.0",
         "year": "2025"
       }
@@ -1520,7 +1484,7 @@
     "personal": {
       "node_info": {
         "name": "Pricing Management",
-        "author": "HAO",
+        "author": "LOC",
         "version": "2.0",
         "year": "2025"
       }
@@ -1618,7 +1582,7 @@
     "personal": {
       "node_info": {
         "name": "System Management",
-        "author": "HAO",
+        "author": "LOC",
         "version": "2.0",
         "year": "2025"
       }

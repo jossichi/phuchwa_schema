@@ -1,0 +1,1627 @@
+[
+  {
+    "_id": "users",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "_id": {
+            "type": "string",
+            "description": "ID duy nhất của người dùng."
+          },
+          "user_id": {
+            "type": "string",
+            "unique": true,
+            "description": "UUID duy nhất được tạo tự động."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["nurse", "elderly"],
+            "description": "Vai trò của người dùng: nurse (y tá) hoặc elderly (người cao tuổi)."
+          }
+        },
+        "jsonSample": [
+          {
+            "_id": "user_001",
+            "user_id": "CARD123456",
+            "role": "nurse"
+          },
+          {
+            "_id": "user_002",
+            "card_id": "QR789012",
+            "role": "elderly"
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "user_id": "uuid_generate_v4()",
+                  "role": { "$in": ["nurse", "elderly"] }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "users",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              },
+              {
+                "$facet": {
+                  "elderly_data": [
+                    {
+                      "$match": { "role": "elderly" }
+                    },
+                    {
+                      "$lookup": {
+                        "from": "registration_requests",
+                        "localField": "user_id",
+                        "foreignField": "user_id",
+                        "as": "elderly_registration"
+                      }
+                    },
+                    {
+                      "$addFields": {
+                        "email": {
+                          "$arrayElemAt": ["$elderly_registration.email", 0]
+                        },
+                        "hashed_password": {
+                          "$arrayElemAt": [
+                            "$elderly_registration.hashed_password",
+                            0
+                          ]
+                        }
+                      }
+                    },
+                    {
+                      "$merge": {
+                        "into": "elderlies",
+                        "on": "user_id",
+                        "whenMatched": "merge",
+                        "whenNotMatched": "insert"
+                      }
+                    }
+                  ],
+                  "nurse_data": [
+                    {
+                      "$match": { "role": "nurse" }
+                    },
+                    {
+                      "$lookup": {
+                        "from": "registration_requests",
+                        "localField": "user_id",
+                        "foreignField": "user_id",
+                        "as": "nurse_registration"
+                      }
+                    },
+                    {
+                      "$addFields": {
+                        "student_id": {
+                          "$arrayElemAt": ["$nurse_registration.student_id", 0]
+                        },
+                        "card_id": {
+                          "$arrayElemAt": ["$nurse_registration.card_id", 0]
+                        },
+                        "public_key": {
+                          "$arrayElemAt": ["$nurse_registration.public_key", 0]
+                        },
+                        "private_key_encrypted": {
+                          "$arrayElemAt": [
+                            "$nurse_registration.private_key_encrypted",
+                            0
+                          ]
+                        },
+                        "signature": {
+                          "$arrayElemAt": ["$nurse_registration.signature", 0]
+                        }
+                      }
+                    },
+                    {
+                      "$merge": {
+                        "into": "nurses",
+                        "on": "user_id",
+                        "whenMatched": "merge",
+                        "whenNotMatched": "insert"
+                      }
+                    }
+                  ]
+                }
+              }
+            ],
+            "purpose": "Pipeline for updating user login/logout status.",
+            "data_input_from_node": [],
+            "data_output_to_node": "nurses, elderlies"
+          }
+        ]
+      }
+    },
+    "personal": {
+      "node_info": {
+        "name": "User Management",
+        "author": "HAO",
+        "version": "2.0",
+        "year": "2025"
+      }
+    }
+  },
+
+  {
+    "_id": "nurses",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "title": "NurseData",
+          "type": "object",
+          "properties": {
+            "_id": { "type": "string" },
+            "user_id": {
+              "type": "string",
+              "unique": true,
+              "description": "UUID duy nhất được tạo tự động."
+            },
+            "card_id": {
+              "type": "string",
+              "unique": true,
+              "description": "ID thẻ QR (tạo từ student_id và user_id, áp dụng cho nurse)."
+            },
+            "school": { "type": "string" },
+            "year_of_study": { "type": "integer" },
+            "poseidonHash": { "type": "string" },
+            "test_score": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "student_id": { "type": "string" },
+            "class": { "type": "string" },
+            "course": { "type": "string" },
+            "major": { "type": "string" },
+            "isAvailableForMatching": { "type": "boolean", "default": true },
+            "matchingResetAt": { "type": "string", "format": "date-time" },
+            "lastTestAt": { "type": "string", "format": "date-time" },
+            "isLockedForToday": { "type": "boolean", "default": false },
+            "dailyScoreHistory": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "timestamp": { "type": "string", "format": "date-time" },
+                  "score": { "type": "integer", "minimum": 0, "maximum": 10 }
+                },
+
+                "required": ["timestamp", "score"],
+                "additionalProperties": false
+              }
+            },
+            "reviews": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "elderly_id": { "type": "string" },
+                  "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+                  "comment": { "type": "string" },
+                  "timestamp": { "type": "string", "format": "date-time" }
+                },
+                "required": ["elderly_id", "rating", "timestamp"],
+                "additionalProperties": false
+              }
+            },
+            "level": {
+              "type": "string",
+              "enum": ["basic", "standard", "premium"]
+            }
+          },
+          "required": [
+            "_id",
+            "user_id",
+            "card_id",
+            "school",
+            "year_of_study",
+            "poseidonHash",
+            "student_id",
+            "class",
+            "course",
+            "major"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "nurse_001",
+            "user_id": "user_001",
+            "school": "Medical University",
+            "year_of_study": 3,
+            "poseidonHash": "hash123",
+            "test_score": 8,
+            "student_id": "STU123456",
+            "class": "Nursing Class A",
+            "course": "2022-2026",
+            "major": "Nursing",
+            "isAvailableForMatching": true,
+            "matchingResetAt": "2023-10-02T08:00:00Z",
+            "lastTestAt": "2023-10-01T12:00:00Z",
+            "isLockedForToday": false,
+            "dailyScoreHistory": [
+              {
+                "timestamp": "2023-10-01T08:00:00Z",
+                "score": 8
+              },
+              {
+                "timestamp": "2023-10-01T12:00:00Z",
+                "score": 4
+              }
+            ],
+            "reviews": [
+              {
+                "elderly_id": "elderly_001",
+                "rating": 5,
+                "comment": "Rất tận tâm và chuyên nghiệp!",
+                "timestamp": "2023-10-01T12:00:00Z"
+              },
+              {
+                "elderly_id": "elderly_002",
+                "rating": 4,
+                "comment": "Tốt, nhưng cần cải thiện thời gian.",
+                "timestamp": "2023-10-02T10:00:00Z"
+              }
+            ],
+            "current_address": "123 Main Street, Hanoi, Vietnam",
+            "level": "standard"
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "isLoggedIn": true,
+                  "isLockedForToday": { "$ne": true }
+                }
+              },
+              {
+                "$addFields": {
+                  "averageTestScore": { "$avg": "$dailyScoreHistory.score" },
+                  "averageRating": { "$avg": "$reviews.rating" }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "test_attempts",
+                  "localField": "_id",
+                  "foreignField": "nurse_id",
+                  "as": "recentTest"
+                }
+              },
+
+              {
+                "$set": {
+                  "isLockedForToday": {
+                    "$cond": {
+                      "if": { "$lt": ["$lastTestScore", 5] },
+                      "then": true,
+                      "else": false
+                    }
+                  }
+                }
+              },
+              {
+                "$set": {
+                  "level": {
+                    "$switch": {
+                      "branches": [
+                        {
+                          "case": {
+                            "$and": [
+                              { "$lt": ["$averageTestScore", 5] },
+                              { "$gt": ["$averageRating", 2] },
+                              { "$lt": ["$averageRating", 3] }
+                            ]
+                          },
+                          "then": "basic"
+                        },
+                        {
+                          "case": {
+                            "$and": [
+                              { "$gte": ["$averageTestScore", 6] },
+                              { "$lte": ["$averageTestScore", 7] },
+                              { "$gt": ["$averageRating", 3] },
+                              { "$lt": ["$averageRating", 4] }
+                            ]
+                          },
+                          "then": "standard"
+                        },
+                        {
+                          "case": {
+                            "$and": [
+                              { "$gte": ["$averageTestScore", 8] },
+                              { "$gte": ["$averageRating", 4] }
+                            ]
+                          },
+                          "then": "premium"
+                        }
+                      ],
+                      "default": "basic"
+                    }
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "nurses",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              },
+              {
+                "$match": {
+                  "lastTestAt": {
+                    "$lte": {
+                      "$subtract": ["$$NOW", 14400000]
+                    }
+                  }
+                },
+                "$set": {
+                  "isLockedForToday": true
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "test_attempts",
+                  "localField": "_id",
+                  "foreignField": "nurse_id",
+                  "as": "recentTest"
+                }
+              },
+              {
+                "$addFields": {
+                  "lastTestScore": {
+                    "$arrayElemAt": ["$recentTest.score", -1]
+                  }
+                }
+              },
+              {
+                "$set": {
+                  "isLockedForToday": {
+                    "$cond": {
+                      "if": { "$lt": ["$lastTestScore", 5] },
+                      "then": true,
+                      "else": false
+                    }
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "nurses",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              },
+              {
+                "$match": {
+                  "isLoggedIn": true,
+                  "currentSystemTime": { "$gte": "20:00:00" }
+                }
+              },
+              {
+                "$set": {
+                  "isLoggedIn": false,
+                  "isAvailableForMatching": false,
+                  "dailyScoreHistory": []
+                }
+              },
+              {
+                "$merge": {
+                  "into": "nurses",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              },
+              {
+                "$match": {
+                  "isLoggedIn": true,
+                  "currentSystemTime": { "$gte": "20:00:00" }
+                }
+              },
+              {
+                "$set": {
+                  "isLoggedIn": false,
+                  "isAvailableForMatching": false,
+                  "dailyScoreHistory": []
+                }
+              },
+              {
+                "$merge": {
+                  "into": "nurses",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for updating nurse test scores.",
+            "data_input_from_node": "users",
+            "data_output_to_node": "test_attempts"
+          }
+        ]
+      }
+    },
+    "personal": {
+      "node_info": {
+        "name": "Nurse Management",
+        "author": "HAO",
+        "version": "2.0",
+        "year": "2025"
+      }
+    }
+  },
+
+  {
+    "_id": "elderlies",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "title": "ElderlyData",
+          "type": "object",
+          "properties": {
+            "_id": { "type": "string" },
+            "user_id": { "type": "string" },
+            "email": {
+              "type": "string",
+              "unique": true,
+              "description": "Email của người cao tuổi."
+            },
+            "hashed_password": {
+              "type": "string",
+              "description": "Mật khẩu băm của người cao tuổi."
+            },
+            "biometricData": { "type": "string" },
+            "current_address": { "type": "string" },
+            "service_level": {
+              "type": "string",
+              "enum": ["basic", "standard", "premium"]
+            },
+
+            "reviewsGiven": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "nurse_id": { "type": "string" },
+                  "rating": { "type": "integer", "minimum": 1, "maximum": 5 },
+                  "comment": { "type": "string" },
+                  "timestamp": { "type": "string", "format": "date-time" }
+                },
+                "required": ["nurse_id", "rating", "timestamp"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["_id", "user_id", "current_address"],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "elderly_001",
+            "user_id": "user_002",
+            "biometricData": "fingerprint123",
+            "current_address": "456 Elm Street, Hanoi, Vietnam",
+            "service_level": "premium",
+
+            "reviewsGiven": [
+              {
+                "nurse_id": "nurse_001",
+                "rating": 5,
+                "comment": "Rất tận tâm và chuyên nghiệp!",
+                "timestamp": "2023-10-01T12:00:00Z"
+              },
+              {
+                "nurse_id": "nurse_002",
+                "rating": 4,
+                "comment": "Tốt, nhưng cần cải thiện thời gian.",
+                "timestamp": "2023-10-02T10:00:00Z"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "id_card_number": {
+                    "$exists": true
+                  }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "transactions",
+                  "localField": "_id",
+                  "foreignField": "elderly_id",
+                  "as": "paymentHistory"
+                }
+              },
+              {
+                "$addFields": {
+                  "totalPayments": { "$size": "$paymentHistory" },
+                  "positiveReviews": {
+                    "$size": {
+                      "$filter": {
+                        "input": "$reviewsGiven",
+                        "as": "review",
+                        "cond": { "$gte": ["$$review.rating", 4] }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "$set": {
+                  "service_level": {
+                    "$switch": {
+                      "branches": [
+                        {
+                          "case": {
+                            "$and": [
+                              { "$gte": ["$totalPayments", 0] },
+                              { "$lt": ["$totalPayments", 5] },
+                              { "$lt": ["$positiveReviews", 3] }
+                            ]
+                          },
+                          "then": "basic"
+                        },
+                        {
+                          "case": {
+                            "$and": [
+                              { "$gte": ["$totalPayments", 5] },
+                              { "$lt": ["$totalPayments", 10] },
+                              { "$gte": ["$positiveReviews", 3] },
+                              { "$lt": ["$positiveReviews", 6] }
+                            ]
+                          },
+                          "then": "standard"
+                        },
+                        {
+                          "case": {
+                            "$and": [
+                              { "$gte": ["$totalPayments", 10] },
+                              { "$gte": ["$positiveReviews", 6] }
+                            ]
+                          },
+                          "then": "premium"
+                        }
+                      ],
+                      "default": "basic"
+                    }
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "elderlies",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for merging elderly data.",
+            "data_input_from_node": "users",
+            "data_output_to_node": "survey_attempts"
+          }
+        ]
+      }
+    },
+    "personal": {
+      "node_info": {
+        "name": "Elderly Management",
+        "author": "HAO",
+        "version": "2.0",
+        "year": "2025"
+      }
+    }
+  },
+
+  {
+    "_id": "cards",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "title": "CardData",
+          "type": "object",
+          "properties": {
+            "_id": { "type": "string" },
+            "card_id": {
+              "type": "string",
+              "description": "ID duy nhất của thẻ (có thể là QR code hoặc mã NFC)."
+            },
+            "hashed_student_id": {
+              "type": "string",
+              "description": "băm ID sinh viên của nurse, liên kết với collection nurses."
+            },
+            "user_id": {
+              "type": "string",
+              "description": "ID người dùng elderly, liên kết với collection elderlies."
+            },
+
+            "public_key": {
+              "type": "string",
+              "description": "Khóa công khai để xác thực chữ ký số."
+            },
+            "private_key_encrypted": {
+              "type": "string",
+              "description": "Khóa riêng tư được mã hóa để bảo mật."
+            },
+            "qr_code_data": {
+              "type": "string",
+              "description": "Dữ liệu QR code chứa thông tin liên quan đến thẻ."
+            }
+          },
+          "required": [
+            "_id",
+            "card_id",
+            "hashed_student_id",
+            "role",
+            "public_key",
+            "private_key_encrypted",
+            "qr_code_data"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "card_001",
+            "card_id": "QR789012",
+            "hashed_student_id": "STU123456",
+            "role": "nurse",
+            "public_key": "0xabc...xyz",
+            "private_key_encrypted": "encrypted_private_key_123",
+            "qr_code_data": "{\"card_id\":\"QR789012\",\"student_id\":\"STU123456\",\"public_key\":\"0xabc...xyz\"}",
+            "created_at": "2023-10-01T12:00:00Z"
+          },
+          {
+            "_id": "card_002",
+            "card_id": "QR987654",
+            "user_id": "user_002",
+            "role": "elderly",
+            "public_key": "0xdef...uvw",
+            "private_key_encrypted": "encrypted_private_key_456",
+            "qr_code_data": "{\"card_id\":\"QR987654\",\"user_id\":\"user_002\",\"public_key\":\"0xdef...uvw\"}",
+            "created_at": "2023-10-02T10:00:00Z"
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "card_id": { "$exists": true }
+                }
+              },
+              {
+                "$addFields": {
+                  "role": {
+                    "$cond": {
+                      "if": { "$ne": ["$student_id", null] },
+                      "then": "nurse",
+                      "else": "elderly"
+                    }
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "cards",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for assigning roles based on student_id or user_id.",
+            "data_input_from_node": "users",
+            "data_output_to_node": "cards"
+          }
+        ]
+      }
+    }
+  },
+
+  {
+    "_id": "login_collection",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "title": "LogData",
+          "type": "object",
+          "properties": {
+            "_id": {
+              "type": "string",
+              "description": "ID duy nhất của phiên đăng nhập."
+            },
+            "user_id": {
+              "type": "string",
+              "description": "ID người dùng liên kết với collection users."
+            },
+            "role": {
+              "type": "string",
+              "enum": ["nurse", "elderly"],
+              "description": "Vai trò của người dùng: nurse (y tá) hoặc elderly (người cao tuổi)."
+            },
+            "card_id": {
+              "type": "string",
+              "nullable": true,
+              "description": "ID thẻ QR (chỉ áp dụng cho nurse)."
+            },
+            "signature": {
+              "type": "string",
+              "nullable": true,
+              "description": "Chữ ký số (chỉ áp dụng cho nurse)."
+            },
+            "token": {
+              "type": "string",
+              "nullable": true,
+              "unique": true,
+              "description": "Token duy nhất cho mỗi phiên đăng nhập (chỉ áp dụng cho nurse)."
+            },
+            "login_time": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời gian đăng nhập."
+            },
+            "logout_time": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true,
+              "description": "Thời gian đăng xuất (null nếu chưa đăng xuất)."
+            }
+          },
+          "required": ["_id", "card_id", "user_id", "login_time"],
+          "additionalProperties": false
+        }
+      },
+      "jsonSample": [
+        {
+          "_id": "log_001",
+          "user_id": "uuid-987654321",
+          "role": "elderly",
+          "login_time": "2023-10-01T10:00:00Z",
+          "logout_time": null
+        },
+        {
+          "_id": "log_002",
+          "user_id": "uuid-123456789",
+          "role": "nurse",
+          "card_id": "QR789012",
+          "signature": "signature_abc123",
+          "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+          "login_time": "2023-10-01T12:00:00Z",
+          "logout_time": null
+        }
+      ]
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          [
+            {
+              "$match": {
+                "email": "example@example.com",
+                "hashed_password": "hashed_password_123"
+              }
+            },
+            {
+              "$lookup": {
+                "from": "users",
+                "localField": "user_id",
+                "foreignField": "user_id",
+                "as": "user_data"
+              }
+            },
+            {
+              "$addFields": {
+                "isLoggedIn": true,
+                "login_time": "$$NOW"
+              }
+            },
+            {
+              "$merge": {
+                "into": "login_collection",
+                "on": "user_id",
+                "whenMatched": "merge",
+                "whenNotMatched": "insert"
+              }
+            }
+          ],
+          [
+            {
+              "$match": {
+                "card_id": "QR789012",
+                "signature": "signature_abc123"
+              }
+            },
+            {
+              "$lookup": {
+                "from": "cards",
+                "localField": "card_id",
+                "foreignField": "card_id",
+                "as": "card_data"
+              }
+            },
+            {
+              "$lookup": {
+                "from": "users",
+                "localField": "user_id",
+                "foreignField": "user_id",
+                "as": "user_data"
+              }
+            },
+            {
+              "$addFields": {
+                "is_authenticated": {
+                  "$cond": {
+                    "if": {
+                      "$and": [
+                        { "$eq": ["$card_data.public_key", "0xabc...xyz"] },
+                        { "$eq": ["$user_data.role", "nurse"] }
+                      ]
+                    },
+                    "then": true,
+                    "else": false
+                  }
+                },
+                "token": "generated_login_token",
+                "login_time": "$$NOW"
+              }
+            },
+            {
+              "$merge": {
+                "into": "login_collection",
+                "on": "user_id",
+                "whenMatched": "merge",
+                "whenNotMatched": "insert"
+              }
+            }
+          ]
+        ]
+      }
+    }
+  },
+
+  {
+    "_id": "test_attempts",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "title": "TestAttemptData",
+          "type": "object",
+          "properties": {
+            "_id": { "type": "string" },
+            "nurse_id": { "type": "string" },
+            "attempt_id": { "type": "string" },
+            "questions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "question": { "type": "string" },
+                  "difficulty": {
+                    "type": "string",
+                    "enum": ["easy", "medium", "hard"]
+                  },
+                  "options": {
+                    "type": "array",
+                    "minItems": 4,
+                    "maxItems": 4,
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "correct_answer": { "type": "string" },
+                  "user_answer": { "type": "string" }
+                },
+                "required": [
+                  "question",
+                  "difficulty",
+                  "options",
+                  "correct_answer",
+                  "user_answer"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "score": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "timestamp": { "type": "string", "format": "date-time" }
+          },
+          "required": [
+            "_id",
+            "nurse_id",
+            "attempt_id",
+            "questions",
+            "score",
+            "timestamp"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "test_attempt_001",
+            "nurse_id": "nurse_001",
+            "attempt_id": "attempt_001",
+            "questions": [
+              {
+                "question": "Điều gì là nguyên nhân chính gây ra sốc phản vệ?",
+                "difficulty": "hard",
+                "options": [
+                  "Viêm phổi",
+                  "Phản ứng dị ứng nghiêm trọng",
+                  "Nhiễm trùng huyết",
+                  "Suy tim"
+                ],
+                "correct_answer": "Phản ứng dị ứng nghiêm trọng",
+                "user_answer": "Phản ứng dị ứng nghiêm trọng"
+              },
+              {
+                "question": "Loại thuốc nào thường được sử dụng đầu tiên trong trường hợp ngừng tim?",
+                "difficulty": "medium",
+                "options": [
+                  "Adrenaline",
+                  "Atropine",
+                  "Amiodarone",
+                  "Lidocaine"
+                ],
+                "correct_answer": "Adrenaline",
+                "user_answer": "Adrenaline"
+              },
+              {
+                "question": "Kỹ thuật CPR tiêu chuẩn yêu cầu tỷ lệ ép ngực là bao nhiêu lần mỗi phút?",
+                "difficulty": "easy",
+                "options": [
+                  "60-80 lần",
+                  "80-100 lần",
+                  "100-120 lần",
+                  "120-140 lần"
+                ],
+                "correct_answer": "100-120 lần",
+                "user_answer": "100-120 lần"
+              },
+              {
+                "question": "Triệu chứng nào sau đây không phải là dấu hiệu của đột quỵ?",
+                "difficulty": "medium",
+                "options": [
+                  "Đau ngực",
+                  "Liệt nửa người",
+                  "Khó nói",
+                  "Mất thăng bằng"
+                ],
+                "correct_answer": "Đau ngực",
+                "user_answer": "Đau ngực"
+              },
+              {
+                "question": "Điều nào sau đây là chức năng chính của hệ bạch huyết?",
+                "difficulty": "hard",
+                "options": [
+                  "Vận chuyển oxy",
+                  "Bảo vệ cơ thể khỏi nhiễm trùng",
+                  "Điều hòa huyết áp",
+                  "Giảm cholesterol"
+                ],
+                "correct_answer": "Bảo vệ cơ thể khỏi nhiễm trùng",
+                "user_answer": "Bảo vệ cơ thể khỏi nhiễm trùng"
+              }
+            ],
+            "score": 5,
+            "timestamp": "2023-10-01T12:00:00Z"
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "score": {
+                    "$gte": 5
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "test_attempts",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for updating test attempts.",
+            "data_input_from_node": "nurses",
+            "data_output_to_node": "matching"
+          }
+        ]
+      }
+    },
+    "personal": {
+      "node_info": {
+        "name": "Test Attempt Management",
+        "author": "HAO",
+        "version": "2.0",
+        "year": "2025"
+      }
+    }
+  },
+
+  {
+    "_id": "survey_attempts",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "title": "SurveyAttemptData",
+          "type": "object",
+          "properties": {
+            "_id": { "type": "string" },
+            "elderly_id": { "type": "string" },
+            "attempt_id": { "type": "string" },
+            "questions": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "question": { "type": "string" },
+                  "answer": { "type": "string" }
+                }
+              }
+            },
+            "verified": { "type": "boolean" },
+            "timestamp": { "type": "string", "format": "date-time" }
+          },
+          "required": [
+            "_id",
+            "elderly_id",
+            "attempt_id",
+            "questions",
+            "verified",
+            "timestamp"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "attempt_001",
+            "elderly_id": "elderly_001",
+            "attempt_id": "ATM123456",
+            "questions": [
+              {
+                "question": "How are you feeling today?",
+                "answer": "Good"
+              },
+              {
+                "question": "Have you taken your medication?",
+                "answer": "Yes"
+              }
+            ],
+            "verified": true,
+            "timestamp": "2023-10-01T12:00:00Z"
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "verified": true
+                }
+              },
+              {
+                "$merge": {
+                  "into": "survey_attempts",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for updating survey attempts.",
+            "data_input_from_node": "elderlies",
+            "data_output_to_node": "matching"
+          }
+        ]
+      }
+    },
+    "personal": {
+      "node_info": {
+        "name": "Survey Attempt Management",
+        "author": "HAO",
+        "version": "2.0",
+        "year": "2025"
+      }
+    }
+  },
+
+  {
+    "_id": "transactions",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "title": "TransactionData",
+          "type": "object",
+          "properties": {
+            "_id": { "type": "string" },
+            "transaction_id": { "type": "string" },
+            "nurse_id": { "type": "string" },
+            "elderly_id": { "type": "string" },
+            "amount": { "type": "number", "minimum": 0 },
+            "service_level": {
+              "type": "string",
+              "enum": ["basic", "standard", "premium"]
+            },
+            "nurse_commission": { "type": "number", "minimum": 0 },
+            "timestamp": { "type": "string", "format": "date-time" }
+          },
+          "required": [
+            "_id",
+            "transaction_id",
+            "nurse_id",
+            "elderly_id",
+            "amount",
+            "service_level",
+            "timestamp"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "txn_001",
+            "transaction_id": "TXN123456",
+            "nurse_id": "nurse_001",
+            "elderly_id": "elderly_001",
+            "amount": 500,
+            "service_level": "premium",
+            "timestamp": "2023-10-01T12:00:00Z"
+          },
+          {
+            "_id": "txn_002",
+            "transaction_id": "TXN123457",
+            "nurse_id": "nurse_002",
+            "elderly_id": "elderly_002",
+            "amount": 1000,
+            "service_level": "standard",
+            "timestamp": "2023-10-02T14:30:00Z"
+          },
+          {
+            "_id": "txn_003",
+            "transaction_id": "TXN123458",
+            "nurse_id": "nurse_003",
+            "elderly_id": "elderly_003",
+            "amount": 200,
+            "service_level": "basic",
+            "timestamp": "2023-10-03T09:15:00Z"
+          },
+          {
+            "_id": "txn_004",
+            "transaction_id": "TXN123459",
+            "nurse_id": "nurse_004",
+            "elderly_id": "elderly_004",
+            "amount": 2000,
+            "service_level": "premium",
+            "timestamp": "2023-10-04T16:45:00Z"
+          },
+          {
+            "_id": "txn_005",
+            "transaction_id": "TXN123460",
+            "nurse_id": "nurse_005",
+            "elderly_id": "elderly_005",
+            "amount": 300,
+            "service_level": "basic",
+            "timestamp": "2023-10-05T11:00:00Z"
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "service_level": {
+                    "$in": ["basic", "standard", "premium"]
+                  }
+                }
+              },
+              {
+                "$addFields": {
+                  "nurse_commission": {
+                    "$switch": {
+                      "branches": [
+                        {
+                          "case": { "$eq": ["$service_level", "standard"] },
+                          "then": { "$multiply": ["$amount", 0.1] }
+                        },
+                        {
+                          "case": { "$eq": ["$service_level", "premium"] },
+                          "then": { "$multiply": ["$amount", 0.15] }
+                        }
+                      ],
+                      "default": 0
+                    }
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "transactions",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for updating transactions.",
+            "data_input_from_node": "pricing",
+            "data_output_to_node": ""
+          }
+        ]
+      }
+    },
+    "personal": {
+      "node_info": {
+        "name": "Transaction Management",
+        "author": "HAO",
+        "version": "2.0",
+        "year": "2025"
+      }
+    }
+  },
+
+  {
+    "_id": "matching",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "title": "MatchingData",
+          "type": "object",
+          "properties": {
+            "_id": { "type": "string" },
+            "nurse_id": { "type": "string" },
+            "elderly_id": { "type": "string" },
+            "service_level": {
+              "type": "string",
+              "enum": ["basic", "standard", "premium"],
+              "description": "Mức dịch vụ: basic (cơ bản), standard (tiêu chuẩn), premium (cao cấp)."
+            },
+            "isMatched": { "type": "boolean", "default": false },
+            "matchedAt": { "type": "string", "format": "date-time" },
+            "resetAt": { "type": "string", "format": "date-time" }
+          },
+          "required": [
+            "_id",
+            "nurse_id",
+            "elderly_id",
+            "service_level",
+            "isMatched",
+            "resetAt"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "match_001",
+            "nurse_id": "nurse_001",
+            "elderly_id": "elderly_001",
+            "service_level": "premium",
+            "isMatched": true,
+            "matchedAt": "2023-10-01T12:00:00Z",
+            "resetAt": "2023-10-02T08:00:00Z"
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "isMatched": false
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "nurses",
+                  "localField": "service_level",
+                  "foreignField": "level",
+                  "as": "availableNurses"
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "elderlies",
+                  "localField": "service_level",
+                  "foreignField": "service_level",
+                  "as": "availableElderlies"
+                }
+              },
+              {
+                "$addFields": {
+                  "matchedPairs": {
+                    "$map": {
+                      "input": "$availableElderlies",
+                      "as": "elderly",
+                      "in": {
+                        "elderly_id": "$$elderly._id",
+                        "nurse_id": {
+                          "$arrayElemAt": [
+                            {
+                              "$filter": {
+                                "input": "$availableNurses",
+                                "as": "nurse",
+                                "cond": {
+                                  "$and": [
+                                    {
+                                      "$eq": [
+                                        "$$nurse.isAvailableForMatching",
+                                        true
+                                      ]
+                                    },
+                                    {
+                                      "$lte": ["$$nurse.distanceToElderly", 10]
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            0
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "matching",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for updating matching status.",
+            "data_input_from_node": [
+              "test_attempts",
+              "survey_attempts",
+              "nurses",
+              "elderlies"
+            ],
+            "data_output_to_node": "transactions"
+          }
+        ]
+      }
+    },
+    "personal": {
+      "node_info": {
+        "name": "Matching Management",
+        "author": "HAO",
+        "version": "2.0",
+        "year": "2025"
+      }
+    }
+  },
+
+  {
+    "_id": "pricing",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "title": "PricingData",
+          "type": "object",
+          "properties": {
+            "_id": { "type": "string" },
+            "service_level": {
+              "type": "string",
+              "enum": ["basic", "standard", "premium"]
+            },
+            "elderly_benefits": { "type": "string" },
+            "nurse_rewards": { "type": "number", "minimum": 0 },
+            "price": { "type": "number", "minimum": 0 }
+          },
+          "required": [
+            "_id",
+            "service_level",
+            "elderly_benefits",
+            "nurse_rewards",
+            "price"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "price_basic",
+            "service_level": "basic",
+            "elderly_benefits": "Chăm sóc cơ bản, theo dõi sức khỏe định kỳ.",
+            "nurse_rewards": 100,
+            "price": 500
+          },
+          {
+            "_id": "price_standard",
+            "service_level": "standard",
+            "elderly_benefits": "Chăm sóc tiêu chuẩn, hỗ trợ y tế hàng ngày.",
+            "nurse_rewards": 300,
+            "price": 1000
+          },
+          {
+            "_id": "price_premium",
+            "service_level": "premium",
+            "elderly_benefits": "Chăm sóc cao cấp, hỗ trợ y tế 24/7.",
+            "nurse_rewards": 500,
+            "price": 2000
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "service_level": {
+                    "$in": ["basic", "standard", "premium"]
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "pricing",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for managing pricing data.",
+            "data_input_from_node": [],
+            "data_output_to_node": ""
+          }
+        ]
+      }
+    },
+    "personal": {
+      "node_info": {
+        "name": "Pricing Management",
+        "author": "HAO",
+        "version": "2.0",
+        "year": "2025"
+      }
+    }
+  },
+
+  {
+    "_id": "system",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "title": "SystemData",
+          "type": "object",
+          "properties": {
+            "_id": { "type": "string" },
+            "logoutAllUsersAt": { "type": "string", "format": "date-time" },
+            "currentSystemTime": { "type": "string", "format": "date-time" }
+          },
+          "required": ["_id", "logoutAllUsersAt", "currentSystemTime"],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "system_001",
+            "logoutAllUsersAt": "2023-10-01T20:00:00Z",
+            "currentSystemTime": "2023-10-01T18:00:00Z"
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "currentSystemTime": {
+                    "$gte": "logoutAllUsersAt"
+                  }
+                }
+              },
+              {
+                "$set": {
+                  "isLoggedIn": false,
+                  "tokens": []
+                }
+              },
+              {
+                "$merge": {
+                  "into": "users",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              },
+
+              {
+                "$lookup": {
+                  "from": "matching",
+                  "localField": "_id",
+                  "foreignField": "_id",
+                  "as": "matchingData"
+                }
+              },
+              {
+                "$unwind": {
+                  "path": "$matchingData",
+                  "preserveNullAndEmptyArrays": true
+                }
+              },
+              {
+                "$set": {
+                  "matchingData.isMatched": false,
+                  "matchingData.matchedAt": null,
+                  "matchingData.resetAt": null
+                }
+              },
+              {
+                "$merge": {
+                  "into": "matching",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for logging out all users and resetting matching data after 20:00.",
+            "data_input_from_node": ["users", "matching"],
+            "data_output_to_node": ["users", "matching"]
+          }
+        ]
+      }
+    },
+    "personal": {
+      "node_info": {
+        "name": "System Management",
+        "author": "HAO",
+        "version": "2.0",
+        "year": "2025"
+      }
+    }
+  }
+]

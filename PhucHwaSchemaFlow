@@ -6,7 +6,7 @@
         "jsonSchema": {
           "_id": {
             "type": "string",
-            "description": "ID duy nhất của người dùng do mongoDB tạo."
+            "description": "ID duy nhất của người dùng do MongoDB tạo."
           },
           "user_id": {
             "type": "string",
@@ -26,20 +26,55 @@
             "type": "boolean",
             "default": false,
             "description": "Trạng thái xác minh email. Phải là true để hoàn tất đăng ký."
+          },
+          "password": {
+            "type": "string",
+            "nullable": true,
+            "description": "Mật khẩu của người dùng (chỉ áp dụng cho elderly)."
+          },
+          "student_id": {
+            "type": "string",
+            "nullable": true,
+            "description": "ID sinh viên của y tá (chỉ áp dụng cho nurse)."
           }
         },
         "jsonSample": [
           {
-            "user_id": "CARD123456",
-            "role": "nurse",
-            "email": "nurse@example.com",
-            "email_verified": false
+            "_id": "1",
+            "user_id": "d2e9c02d-8450-406d-b3e5-bd8e7a0c889b",
+            "role": "elderly",
+            "email": "elderly1@example.com",
+            "email_verified": true,
+            "password": "hashedpassword1",
+            "card_id": null
+          },
+
+          {
+            "_id": "2",
+            "user_id": "a89d2f08-cce7-4a98-bc33-4bdb8c80c7da",
+            "role": "elderly",
+            "email": "elderly2@example.com",
+            "email_verified": false,
+            "password": "hashedpassword2",
+            "card_id": null
           },
           {
-            "user_id": "QR789012",
-            "role": "elderly",
-            "email": "elderly@example.com",
-            "email_verified": true
+            "_id": "3",
+            "user_id": "f512ab7d-4c8c-4dcf-b9c2-1a1a2e3b5d6e",
+            "role": "nurse",
+            "email": "nurse1@example.com",
+            "email_verified": true,
+            "password": null,
+            "card_id": "abcd1234efgh5678ijkl9012mnop3456"
+          },
+          {
+            "_id": "4",
+            "user_id": "bd15f4b0-c0f0-44e9-9cd9-0ed6db233445",
+            "role": "nurse",
+            "email": "nurse2@example.com",
+            "email_verified": false,
+            "password": null,
+            "card_id": "mnop1234abcd5678ijkl9012efgh3456"
           }
         ]
       }
@@ -48,55 +83,91 @@
       "node_function": {
         "edge": [
           {
-            "pipeline": [
-              {
-                "$match": {
-                  "email_verified": true,
-                  "role": { "$in": ["nurse", "elderly"] }
+            "$match": {
+              "email_verified": true,
+              "role": {
+                "$in": ["nurse", "elderly"]
+              }
+            }
+          },
+          {
+            "$addFields": {
+              "card_id": {
+                "$cond": {
+                  "if": { "$eq": ["$role", "nurse"] },
+                  "then": {
+                    "$concat": ["CARD_", { "$substr": ["$user_id", 0, 8] }]
+                  },
+                  "else": null
                 }
               },
-              {
-                "$merge": {
-                  "into": "users",
-                  "on": "user_id",
-                  "whenMatched": "merge",
-                  "whenNotMatched": "insert"
-                }
-              },
-              {
-                "$facet": {
-                  "elderly_data": [
-                    {
-                      "$match": { "role": "elderly" }
-                    },
-                    {
-                      "$merge": {
-                        "into": "elderlies",
-                        "on": "user_id",
-                        "whenMatched": "merge",
-                        "whenNotMatched": "insert"
+              "hashed_password": {
+                "$cond": {
+                  "if": { "$eq": ["$role", "elderly"] },
+                  "then": {
+                    "$toHex": {
+                      "$hash": {
+                        "input": "$password",
+                        "algorithm": "sha256"
                       }
                     }
-                  ],
-                  "nurse_data": [
-                    {
-                      "$match": { "role": "nurse" }
-                    },
-                    {
-                      "$merge": {
-                        "into": "nurses",
-                        "on": "user_id",
-                        "whenMatched": "merge",
-                        "whenNotMatched": "insert"
-                      }
-                    }
-                  ]
+                  },
+                  "else": null
                 }
               }
-            ],
-            "purpose": "Chỉ đồng bộ khi email đã được xác minh.",
-            "data_input_from_node": [],
-            "data_output_to_node": "nurses, elderlies"
+            }
+          },
+          {
+            "$facet": {
+              "nurse_data": [
+                {
+                  "$match": {
+                    "role": "nurse"
+                  }
+                },
+                {
+                  "$lookup": {
+                    "from": "cards",
+                    "localField": "user_id",
+                    "foreignField": "user_id",
+                    "as": "card_info"
+                  }
+                },
+                {
+                  "$addFields": {
+                    "card_id": {
+                      "$arrayElemAt": ["$card_info.card_id", 0]
+                    }
+                  }
+                },
+                {
+                  "$project": {
+                    "_id": 1,
+                    "user_id": 1,
+                    "email": 1,
+                    "student_id": 1,
+                    "card_id": 1,
+                    "role": 1
+                  }
+                }
+              ],
+              "elderly_data": [
+                {
+                  "$match": {
+                    "role": "elderly"
+                  }
+                },
+                {
+                  "$project": {
+                    "_id": 1,
+                    "user_id": 1,
+                    "email": 1,
+                    "hashed_password": 1,
+                    "role": 1
+                  }
+                }
+              ]
+            }
           }
         ]
       }
@@ -110,6 +181,7 @@
       }
     }
   },
+
   {
     "_id": "nurses",
     "public": {
@@ -189,45 +261,45 @@
         },
         "jsonSample": [
           {
-            "_id": "nurse_001",
-            "user_id": "user_001",
-            "school": "Medical University",
+            "_id": "6636f3eaa83c4e23a1f4d401",
+            "user_id": "f512ab7d-4c8c-4dcf-b9c2-1a1a2e3b5d6e",
+            "card_id": "abcd1234efgh5678ijkl9012mnop3456",
+            "school": "University of Health",
             "year_of_study": 3,
-            "poseidonHash": "hash123",
+            "poseidonHash": "3db36f1a2c8b8d1a99b7a6484670fc2b6c8101de813a62f25d0e421f6a5b4628",
             "test_score": 8,
-            "student_id": "STU123456",
-            "class": "Nursing Class A",
-            "course": "2022-2026",
+            "student_id": "S12345678",
+            "class": "Nursing 101",
+            "course": "Nursing Science",
             "major": "Nursing",
             "isAvailableForMatching": true,
-            "matchingResetAt": "2023-10-02T08:00:00Z",
-            "lastTestAt": "2023-10-01T12:00:00Z",
+            "matchingResetAt": "2025-04-23T10:30:00Z",
+            "lastTestAt": "2025-04-22T15:45:00Z",
             "isLockedForToday": false,
             "dailyScoreHistory": [
               {
-                "timestamp": "2023-10-01T08:00:00Z",
-                "score": 8
+                "timestamp": "2025-04-22T10:00:00Z",
+                "score": 7
               },
               {
-                "timestamp": "2023-10-01T12:00:00Z",
-                "score": 4
+                "timestamp": "2025-04-21T10:00:00Z",
+                "score": 9
               }
             ],
             "reviews": [
               {
-                "elderly_id": "elderly_001",
-                "rating": 5,
-                "comment": "Rất tận tâm và chuyên nghiệp!",
-                "timestamp": "2023-10-01T12:00:00Z"
+                "elderly_id": "e1a2b3c4d5e6f7g8h9i0",
+                "rating": 4,
+                "comment": "Good performance, but needs to improve on time management.",
+                "timestamp": "2025-04-22T12:00:00Z"
               },
               {
-                "elderly_id": "elderly_002",
-                "rating": 4,
-                "comment": "Tốt, nhưng cần cải thiện thời gian.",
-                "timestamp": "2023-10-02T10:00:00Z"
+                "elderly_id": "e9h8g7f6d5e4f3b2a1c0",
+                "rating": 5,
+                "comment": "Excellent nurse, very patient and understanding.",
+                "timestamp": "2025-04-20T09:30:00Z"
               }
             ],
-            "current_address": "123 Main Street, Hanoi, Vietnam",
             "level": "standard"
           }
         ]

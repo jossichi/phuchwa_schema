@@ -2900,7 +2900,6 @@
         "jsonSchema": {
           "$schema": "http://json-schema.org/draft-07/schema#",
           "title": "TransactionData",
-          "description": "Schema for the transactions collection, containing detailed information about financial transactions.",
           "type": "object",
           "properties": {
             "_id": {
@@ -2917,7 +2916,7 @@
             },
             "nurse_id": {
               "type": "string",
-              "description": "ID nurse nhận thanh toán (tham chiếu đến collection nurses)."
+              "description": "ID nurse nhận thanh toán (tham chiếu đến collection nurses và cards)."
             },
             "amount": {
               "type": "number",
@@ -2951,8 +2950,8 @@
             },
             "payment_method": {
               "type": "string",
-              "enum": ["wallet_balance", "bank_transfer", "crypto"],
-              "description": "Phương thức thanh toán."
+              "enum": ["bank_transfer"],
+              "description": "Phương thức thanh toán (không sử dụng wallet_balance)."
             },
             "created_at": {
               "type": "string",
@@ -3004,7 +3003,7 @@
             "platform_fee": 300000,
             "nurse_receive_amount": 1200000,
             "status": "completed",
-            "payment_method": "wallet_balance",
+            "payment_method": "bank_transfer",
             "created_at": "2023-10-01T12:00:00Z",
             "updated_at": "2023-10-01T12:05:00Z",
             "note": "Thanh toán cho dịch vụ chăm sóc cơ bản.",
@@ -3025,7 +3024,7 @@
               },
               {
                 "$lookup": {
-                  "from": "wallets",
+                  "from": "cards",
                   "localField": "elderly_id",
                   "foreignField": "user_id",
                   "as": "elderly_wallet"
@@ -3033,7 +3032,7 @@
               },
               {
                 "$lookup": {
-                  "from": "wallets",
+                  "from": "cards",
                   "localField": "nurse_id",
                   "foreignField": "user_id",
                   "as": "nurse_wallet"
@@ -3081,7 +3080,7 @@
               },
               {
                 "$merge": {
-                  "into": "wallets",
+                  "into": "cards",
                   "on": "user_id",
                   "whenMatched": "merge",
                   "whenNotMatched": "insert"

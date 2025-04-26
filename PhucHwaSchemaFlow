@@ -1812,6 +1812,418 @@
   },
 
   {
+    "_id": "contracts",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "ContractData",
+          "type": "object",
+          "properties": {
+            "_id": {
+              "type": "string",
+              "description": "ID duy nhất của tài liệu do MongoDB tạo."
+            },
+            "matching_id": {
+              "type": "string",
+              "description": "ID của matching (tham chiếu đến collection matching)."
+            },
+            "elderly_id": {
+              "type": "string",
+              "description": "ID của elderly (tham chiếu đến collection elderlies)."
+            },
+            "nurse_id": {
+              "type": "string",
+              "description": "ID của nurse (tham chiếu đến collection nurses)."
+            },
+            "contract_hash": {
+              "type": "string",
+              "description": "Hash toàn bộ terms (sử dụng thuật toán SHA-256 hoặc tương đương)."
+            },
+            "signed_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời gian ký hợp đồng."
+            },
+            "status": {
+              "type": "string",
+              "enum": ["pending", "active", "violated", "terminated"],
+              "description": "Trạng thái của hợp đồng."
+            },
+            "signed_by_elderly": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true,
+              "description": "Thời điểm elderly ký hợp đồng (hoặc null nếu chưa ký)."
+            },
+            "signed_by_nurse": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true,
+              "description": "Thời điểm nurse ký hợp đồng (hoặc null nếu chưa ký)."
+            },
+            "elderly_signature": {
+              "type": "string",
+              "nullable": true,
+              "description": "Chữ ký số của elderly (ECDSA ký lên contract_hash)."
+            },
+            "nurse_signature": {
+              "type": "string",
+              "nullable": true,
+              "description": "Chữ ký số của nurse (truy xuất từ collection cards)."
+            },
+            "effective_date": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Ngày hợp đồng bắt đầu hiệu lực (có thể khác ngày ký)."
+            },
+            "expiry_date": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true,
+              "description": "Ngày kết thúc hợp đồng."
+            },
+            "created_by": {
+              "type": "string",
+              "default": "system",
+              "description": "Ai tạo hợp đồng này? (thường là hệ thống)."
+            },
+            "last_modified_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời gian cập nhật lần cuối."
+            },
+            "history_logs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "action": { "type": "string" },
+                  "modified_by": { "type": "string" },
+                  "timestamp": { "type": "string", "format": "date-time" }
+                },
+                "required": ["action", "modified_by", "timestamp"],
+                "additionalProperties": false
+              },
+              "description": "Lịch sử thay đổi trạng thái hợp đồng."
+            },
+            "payment_details": {
+              "type": "object",
+              "properties": {
+                "service_level": {
+                  "type": "string",
+                  "enum": ["basic", "standard", "premium"],
+                  "description": "Mức dịch vụ: basic (cơ bản), standard (tiêu chuẩn), premium (cao cấp)."
+                },
+                "price_per_hour": {
+                  "type": "number",
+                  "description": "Giá elderly trả cho mỗi giờ (VND/giờ)."
+                },
+                "total_hours_booked": {
+                  "type": "integer",
+                  "description": "Tổng số giờ được booking trong hợp đồng."
+                },
+                "deposit_amount": {
+                  "type": "number",
+                  "description": "Số tiền cọc elderly phải thanh toán trước (50% tổng giá trị hợp đồng)."
+                },
+                "remaining_payment": {
+                  "type": "number",
+                  "description": "Số tiền còn lại elderly phải thanh toán sau khi hoàn thành công việc (50% tổng giá trị hợp đồng)."
+                },
+                "nurse_share_percentage": {
+                  "type": "number",
+                  "description": "Phần trăm doanh thu nurse nhận được (%)."
+                },
+                "platform_share_percentage": {
+                  "type": "number",
+                  "description": "Phần trăm doanh thu platform giữ lại (%)."
+                },
+                "nurse_total_earnings": {
+                  "type": "number",
+                  "description": "Tổng số tiền nurse nhận được sau khi hoàn thành công việc."
+                },
+                "platform_total_earnings": {
+                  "type": "number",
+                  "description": "Tổng số tiền platform giữ lại."
+                }
+              },
+              "required": [
+                "service_level",
+                "price_per_hour",
+                "total_hours_booked",
+                "deposit_amount",
+                "remaining_payment",
+                "nurse_share_percentage",
+                "platform_share_percentage",
+                "nurse_total_earnings",
+                "platform_total_earnings"
+              ],
+              "description": "Chi tiết thanh toán và phân chia doanh thu."
+            },
+            "terms": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Các điều khoản trong hợp đồng."
+            }
+          },
+          "required": [
+            "_id",
+            "matching_id",
+            "elderly_id",
+            "nurse_id",
+            "contract_hash",
+            "signed_at",
+            "status",
+            "effective_date",
+            "created_by",
+            "last_modified_at",
+            "payment_details",
+            "terms"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "contract_001",
+            "matching_id": "matching_123",
+            "elderly_id": "elderly_456",
+            "nurse_id": "nurse_789",
+            "contract_hash": "a1b2c3d4e5f6...",
+            "signed_at": "2025-04-26T09:00:00Z",
+            "status": "active",
+            "signed_by_elderly": "2025-04-26T09:05:00Z",
+            "signed_by_nurse": "2025-04-26T09:10:00Z",
+            "elderly_signature": "MEUCIQD...base64-encoded-signature...",
+            "nurse_signature": "MEYCIQClmjgP0xIDTkGzJ3knZFbs6p5X... (rút gọn)",
+            "effective_date": "2025-04-27T00:00:00Z",
+            "expiry_date": "2026-04-27T00:00:00Z",
+            "created_by": "system",
+            "last_modified_at": "2025-04-26T09:15:00Z",
+            "history_logs": [
+              {
+                "action": "created",
+                "modified_by": "system",
+                "timestamp": "2025-04-26T09:00:00Z"
+              },
+              {
+                "action": "elderly_signed",
+                "modified_by": "elderly_456",
+                "timestamp": "2025-04-26T09:05:00Z"
+              },
+              {
+                "action": "nurse_signed",
+                "modified_by": "nurse_789",
+                "timestamp": "2025-04-26T09:10:00Z"
+              },
+              {
+                "action": "activated",
+                "modified_by": "system",
+                "timestamp": "2025-04-26T09:15:00Z"
+              }
+            ],
+            "payment_details": {
+              "service_level": "basic",
+              "price_per_hour": 150000,
+              "total_hours_booked": 10,
+              "deposit_amount": 750000,
+              "remaining_payment": 750000,
+              "nurse_share_percentage": 75,
+              "platform_share_percentage": 25,
+              "nurse_total_earnings": 1125000,
+              "platform_total_earnings": 375000
+            },
+            "terms": [
+              "Elderly phải thanh toán trước 50% giá trị hợp đồng.",
+              "Nurse sẽ nhận 75% doanh thu, platform giữ 25%.",
+              "Hợp đồng có hiệu lực từ 2025-04-27 đến 2026-04-27."
+            ]
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "status": "pending"
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "cards",
+                  "localField": "nurse_id",
+                  "foreignField": "user_id",
+                  "as": "nurse_card_info"
+                }
+              },
+              {
+                "$addFields": {
+                  "nurse_signature": {
+                    "$arrayElemAt": ["$nurse_card_info.signature", 0]
+                  },
+                  "elderly_signature": {
+                    "$concat": ["$elderly_id", "$contract_hash"]
+                  }
+                }
+              },
+              {
+                "$addFields": {
+                  "signed_by_elderly": {
+                    "$cond": {
+                      "if": { "$ne": ["$elderly_signature", null] },
+                      "then": "$$NOW",
+                      "else": null
+                    }
+                  },
+                  "signed_by_nurse": {
+                    "$cond": {
+                      "if": { "$ne": ["$nurse_signature", null] },
+                      "then": "$$NOW",
+                      "else": null
+                    }
+                  }
+                }
+              },
+              {
+                "$match": {
+                  "signed_by_elderly": { "$exists": true },
+                  "signed_by_nurse": { "$exists": true }
+                }
+              },
+              {
+                "$addFields": {
+                  "status": "active",
+                  "last_modified_at": "$$NOW"
+                }
+              },
+              {
+                "$addFields": {
+                  "history_logs": {
+                    "$concatArrays": [
+                      "$history_logs",
+                      [
+                        {
+                          "action": "contract_status_updated_to_active",
+                          "modified_by": "system",
+                          "timestamp": "$$NOW"
+                        }
+                      ]
+                    ]
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "contracts",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for activating contracts when both parties have signed.",
+            "data_input_from_node": ["matching", "cards"],
+            "data_output_to_node": "contracts"
+          },
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "status": { "$in": ["pending", "active"] }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "transactions",
+                  "localField": "payment_details.transaction_id",
+                  "foreignField": "transaction_id",
+                  "as": "transaction_details"
+                }
+              },
+              {
+                "$addFields": {
+                  "is_payment_completed": {
+                    "$cond": {
+                      "if": {
+                        "$eq": ["$transaction_details.status", "completed"]
+                      },
+                      "then": true,
+                      "else": false
+                    }
+                  }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "disputes",
+                  "localField": "_id",
+                  "foreignField": "contract_id",
+                  "as": "dispute_details"
+                }
+              },
+              {
+                "$addFields": {
+                  "has_violation": {
+                    "$cond": {
+                      "if": { "$gt": [{ "$size": "$dispute_details" }, 0] },
+                      "then": true,
+                      "else": false
+                    }
+                  }
+                }
+              },
+              {
+                "$addFields": {
+                  "status": {
+                    "$switch": {
+                      "branches": [
+                        {
+                          "case": {
+                            "$and": [
+                              "$has_violation",
+                              { "$ne": ["$status", "violated"] }
+                            ]
+                          },
+                          "then": "violated"
+                        },
+                        {
+                          "case": {
+                            "$and": [
+                              "$is_payment_completed",
+                              { "$eq": ["$status", "pending"] }
+                            ]
+                          },
+                          "then": "active"
+                        }
+                      ],
+                      "default": "$status"
+                    }
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "contracts",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for monitoring contracts, detecting violations, and updating contract status based on payment and disputes.",
+            "data_input_from_node": ["transactions", "disputes"],
+            "data_output_to_node": "contracts"
+          }
+        ]
+      }
+    }
+  },
+
+  {
     "_id": "matching",
     "public": {
       "node_data": {
@@ -2462,77 +2874,117 @@
     "public": {
       "node_data": {
         "jsonSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
           "title": "TransactionData",
+          "description": "Schema for the transactions collection, containing detailed information about financial transactions.",
           "type": "object",
           "properties": {
-            "_id": { "type": "string" },
-            "transaction_id": { "type": "string" },
-            "nurse_id": { "type": "string" },
-            "elderly_id": { "type": "string" },
-            "amount": { "type": "number", "minimum": 0 },
-            "service_level": {
-              "type": "string",
-              "enum": ["basic", "standard", "premium"]
+            "_id": {
+              "bsonType": "objectId",
+              "description": "ID duy nhất của tài liệu do MongoDB tự động sinh."
             },
-            "nurse_commission": { "type": "number", "minimum": 0 },
-            "timestamp": { "type": "string", "format": "date-time" }
+            "transaction_id": {
+              "type": "string",
+              "description": "ID giao dịch duy nhất (UUIDv4)."
+            },
+            "elderly_id": {
+              "type": "string",
+              "description": "ID elderly thực hiện thanh toán (tham chiếu đến collection elderlies)."
+            },
+            "nurse_id": {
+              "type": "string",
+              "description": "ID nurse nhận thanh toán (tham chiếu đến collection nurses)."
+            },
+            "amount": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Số tiền thanh toán (ví dụ: VND hoặc Token unit)."
+            },
+            "currency": {
+              "type": "string",
+              "enum": ["VND", "ETH", "USDT", "PlatformToken"],
+              "description": "Loại tiền tệ sử dụng trong giao dịch."
+            },
+            "service_type": {
+              "type": "string",
+              "enum": ["basic", "standard", "premium"],
+              "description": "Loại dịch vụ liên quan đến giao dịch."
+            },
+            "platform_fee": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Phí nền tảng (số tiền trừ ra từ tổng số tiền)."
+            },
+            "nurse_receive_amount": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Số tiền thực tế nurse nhận sau khi trừ phí nền tảng."
+            },
+            "status": {
+              "type": "string",
+              "enum": ["pending", "completed", "failed", "cancelled"],
+              "description": "Trạng thái giao dịch."
+            },
+            "payment_method": {
+              "type": "string",
+              "enum": ["wallet_balance", "bank_transfer", "crypto"],
+              "description": "Phương thức thanh toán."
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời gian tạo giao dịch."
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời gian cập nhật giao dịch."
+            },
+            "note": {
+              "type": "string",
+              "nullable": true,
+              "description": "Ghi chú giao dịch (ví dụ: lý do refund, lý do cancel)."
+            },
+            "withdraw_request_id": {
+              "type": "string",
+              "nullable": true,
+              "description": "ID rút tiền liên quan (nếu có, tham chiếu đến collection withdraw_requests)."
+            }
           },
           "required": [
             "_id",
             "transaction_id",
-            "nurse_id",
             "elderly_id",
+            "nurse_id",
             "amount",
-            "service_level",
-            "timestamp"
+            "currency",
+            "service_type",
+            "platform_fee",
+            "nurse_receive_amount",
+            "status",
+            "payment_method",
+            "created_at",
+            "updated_at"
           ],
           "additionalProperties": false
         },
         "jsonSample": [
           {
-            "_id": "txn_001",
-            "transaction_id": "TXN123456",
-            "nurse_id": "nurse_001",
-            "elderly_id": "elderly_001",
-            "amount": 500,
-            "service_level": "premium",
-            "timestamp": "2023-10-01T12:00:00Z"
-          },
-          {
-            "_id": "txn_002",
-            "transaction_id": "TXN123457",
-            "nurse_id": "nurse_002",
-            "elderly_id": "elderly_002",
-            "amount": 1000,
-            "service_level": "standard",
-            "timestamp": "2023-10-02T14:30:00Z"
-          },
-          {
-            "_id": "txn_003",
-            "transaction_id": "TXN123458",
-            "nurse_id": "nurse_003",
-            "elderly_id": "elderly_003",
-            "amount": 200,
-            "service_level": "basic",
-            "timestamp": "2023-10-03T09:15:00Z"
-          },
-          {
-            "_id": "txn_004",
-            "transaction_id": "TXN123459",
-            "nurse_id": "nurse_004",
-            "elderly_id": "elderly_004",
-            "amount": 2000,
-            "service_level": "premium",
-            "timestamp": "2023-10-04T16:45:00Z"
-          },
-          {
-            "_id": "txn_005",
-            "transaction_id": "TXN123460",
-            "nurse_id": "nurse_005",
-            "elderly_id": "elderly_005",
-            "amount": 300,
-            "service_level": "basic",
-            "timestamp": "2023-10-05T11:00:00Z"
+            "_id": "653f8b2e1c9d440000a1b2c3",
+            "transaction_id": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
+            "elderly_id": "elderly_123",
+            "nurse_id": "nurse_456",
+            "amount": 1500000,
+            "currency": "VND",
+            "service_type": "standard",
+            "platform_fee": 300000,
+            "nurse_receive_amount": 1200000,
+            "status": "completed",
+            "payment_method": "wallet_balance",
+            "created_at": "2023-10-01T12:00:00Z",
+            "updated_at": "2023-10-01T12:05:00Z",
+            "note": "Thanh toán cho dịch vụ chăm sóc cơ bản.",
+            "withdraw_request_id": null
           }
         ]
       }
@@ -2544,26 +2996,53 @@
             "pipeline": [
               {
                 "$match": {
-                  "service_level": {
-                    "$in": ["basic", "standard", "premium"]
-                  }
+                  "status": "pending"
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "wallets",
+                  "localField": "elderly_id",
+                  "foreignField": "user_id",
+                  "as": "elderly_wallet"
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "wallets",
+                  "localField": "nurse_id",
+                  "foreignField": "user_id",
+                  "as": "nurse_wallet"
                 }
               },
               {
                 "$addFields": {
-                  "nurse_commission": {
-                    "$switch": {
-                      "branches": [
-                        {
-                          "case": { "$eq": ["$service_level", "standard"] },
-                          "then": { "$multiply": ["$amount", 0.1] }
-                        },
-                        {
-                          "case": { "$eq": ["$service_level", "premium"] },
-                          "then": { "$multiply": ["$amount", 0.15] }
-                        }
-                      ],
-                      "default": 0
+                  "elderly_balance": {
+                    "$arrayElemAt": ["$elderly_wallet.balance", 0]
+                  },
+                  "nurse_balance": {
+                    "$arrayElemAt": ["$nurse_wallet.balance", 0]
+                  }
+                }
+              },
+              {
+                "$match": {
+                  "elderly_balance": { "$gte": "$amount" }
+                }
+              },
+              {
+                "$addFields": {
+                  "new_elderly_balance": {
+                    "$subtract": ["$elderly_balance", "$amount"]
+                  },
+                  "new_nurse_balance": {
+                    "$add": ["$nurse_balance", "$nurse_receive_amount"]
+                  },
+                  "platform_balance_increase": "$platform_fee",
+                  "updated_at": {
+                    "$dateToString": {
+                      "format": "%Y-%m-%dT%H:%M:%SZ",
+                      "date": "$$NOW"
                     }
                   }
                 }
@@ -2572,6 +3051,14 @@
                 "$merge": {
                   "into": "transactions",
                   "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              },
+              {
+                "$merge": {
+                  "into": "wallets",
+                  "on": "user_id",
                   "whenMatched": "merge",
                   "whenNotMatched": "insert"
                 }
@@ -2595,52 +3082,93 @@
   },
 
   {
-    "_id": "pricing",
+    "_id": "disputes",
     "public": {
       "node_data": {
         "jsonSchema": {
-          "title": "PricingData",
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "DisputeData",
           "type": "object",
           "properties": {
-            "_id": { "type": "string" },
-            "service_level": {
-              "type": "string",
-              "enum": ["basic", "standard", "premium"]
+            "_id": {
+              "bsonType": "objectId",
+              "description": "ID duy nhất của tài liệu do MongoDB tự động sinh."
             },
-            "elderly_benefits": { "type": "string" },
-            "nurse_rewards": { "type": "number", "minimum": 0 },
-            "price": { "type": "number", "minimum": 0 }
+            "dispute_id": {
+              "type": "string",
+              "description": "ID tranh chấp (UUID)."
+            },
+            "transaction_id": {
+              "type": "string",
+              "description": "ID giao dịch bị tranh chấp (tham chiếu đến collection transactions)."
+            },
+            "complainant_id": {
+              "type": "string",
+              "description": "ID người gửi khiếu nại (elderly hoặc nurse)."
+            },
+            "defendant_id": {
+              "type": "string",
+              "description": "ID người bị khiếu nại (elderly hoặc nurse)."
+            },
+            "reason": {
+              "type": "string",
+              "description": "Lý do tranh chấp."
+            },
+            "evidences": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Link hình ảnh, file bằng chứng."
+            },
+            "status": {
+              "type": "string",
+              "enum": ["open", "under_review", "resolved", "rejected"],
+              "description": "Trạng thái tranh chấp."
+            },
+            "resolution": {
+              "type": "string",
+              "nullable": true,
+              "description": "Cách xử lý (phạt tiền, refund, ban...)."
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời gian tạo tranh chấp."
+            },
+            "resolved_at": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true,
+              "description": "Thời gian giải quyết tranh chấp."
+            }
           },
           "required": [
             "_id",
-            "service_level",
-            "elderly_benefits",
-            "nurse_rewards",
-            "price"
+            "dispute_id",
+            "transaction_id",
+            "complainant_id",
+            "defendant_id",
+            "reason",
+            "status",
+            "created_at"
           ],
           "additionalProperties": false
         },
         "jsonSample": [
           {
-            "_id": "price_basic",
-            "service_level": "basic",
-            "elderly_benefits": "Chăm sóc cơ bản, theo dõi sức khỏe định kỳ.",
-            "nurse_rewards": 100,
-            "price": 500
-          },
-          {
-            "_id": "price_standard",
-            "service_level": "standard",
-            "elderly_benefits": "Chăm sóc tiêu chuẩn, hỗ trợ y tế hàng ngày.",
-            "nurse_rewards": 300,
-            "price": 1000
-          },
-          {
-            "_id": "price_premium",
-            "service_level": "premium",
-            "elderly_benefits": "Chăm sóc cao cấp, hỗ trợ y tế 24/7.",
-            "nurse_rewards": 500,
-            "price": 2000
+            "_id": "653f8b2e1c9d440000a1b2c3",
+            "dispute_id": "d1e2f3g4-h5i6-j7k8-l9m0-n1o2p3q4r5s6",
+            "transaction_id": "t1x2y3z4-a5b6-c7d8-e9f0-g1h2i3j4k5l6",
+            "complainant_id": "elderly_123",
+            "defendant_id": "nurse_456",
+            "reason": "Nurse không thực hiện đúng cam kết chăm sóc.",
+            "evidences": [
+              "https://example.com/evidence1.jpg",
+              "https://example.com/chat_log.txt"
+            ],
+            "status": "under_review",
+            "resolution": null,
+            "created_at": "2025-04-26T09:00:00Z",
+            "resolved_at": null
           }
         ]
       }
@@ -2652,33 +3180,392 @@
             "pipeline": [
               {
                 "$match": {
-                  "service_level": {
-                    "$in": ["basic", "standard", "premium"]
+                  "status": { "$in": ["open", "under_review"] }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "transactions",
+                  "localField": "transaction_id",
+                  "foreignField": "transaction_id",
+                  "as": "transaction_details"
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "contracts",
+                  "localField": "transaction_id",
+                  "foreignField": "payment_details.transaction_id",
+                  "as": "contract_details"
+                }
+              },
+              {
+                "$addFields": {
+                  "transaction_details": {
+                    "$arrayElemAt": ["$transaction_details", 0]
+                  },
+                  "contract_details": {
+                    "$arrayElemAt": ["$contract_details", 0]
+                  }
+                }
+              },
+              {
+                "$addFields": {
+                  "penalty_fee": {
+                    "$multiply": ["$transaction_details.amount", 0.1]
+                  },
+                  "freeze_balance": {
+                    "$cond": {
+                      "if": {
+                        "$eq": [
+                          "$defendant_id",
+                          "$transaction_details.nurse_id"
+                        ]
+                      },
+                      "then": "$transaction_details.nurse_receive_amount",
+                      "else": 0
+                    }
                   }
                 }
               },
               {
                 "$merge": {
-                  "into": "pricing",
+                  "into": "disputes",
                   "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              },
+              {
+                "$merge": {
+                  "into": "wallets",
+                  "on": "user_id",
                   "whenMatched": "merge",
                   "whenNotMatched": "insert"
                 }
               }
             ],
-            "purpose": "Pipeline for managing pricing data.",
-            "data_input_from_node": [],
+            "purpose": "Pipeline for updating disputes.",
+            "data_input_from_node": "contracts",
             "data_output_to_node": ""
           }
         ]
       }
+    }
+  },
+
+  {
+    "_id": "pricing",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "PriceData",
+          "description": "Schema for the prices collection, containing pricing and service details.",
+          "type": "object",
+          "properties": {
+            "_id": {
+              "type": "string",
+              "description": "ID duy nhất của tài liệu do MongoDB tạo."
+            },
+            "service_level": {
+              "type": "string",
+              "enum": ["basic", "standard", "premium"],
+              "description": "Mức dịch vụ: basic (cơ bản), standard (tiêu chuẩn), premium (cao cấp)."
+            },
+            "price_range": {
+              "type": "object",
+              "properties": {
+                "min": {
+                  "type": "number",
+                  "description": "Giá tối thiểu (VND/giờ)."
+                },
+                "max": {
+                  "type": "number",
+                  "description": "Giá tối đa (VND/giờ)."
+                }
+              },
+              "required": ["min", "max"],
+              "description": "Phạm vi giá cho dịch vụ."
+            },
+            "elderly_benefits": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Quyền lợi dành cho elderly (dịch vụ mà người cao tuổi được hưởng)."
+            },
+            "nurse_obligations": {
+              "type": "object",
+              "properties": {
+                "committed_hours_per_week": {
+                  "type": "integer",
+                  "description": "Số giờ làm việc cam kết/tuần."
+                },
+                "response_time_commitment": {
+                  "type": "string",
+                  "enum": ["24h", "12h", "4h"],
+                  "description": "Thời gian phản hồi yêu cầu (trong 24h, 12h hoặc 4h)."
+                },
+                "daily_reports": {
+                  "type": "integer",
+                  "description": "Số lần báo cáo tình trạng/ngày."
+                },
+                "certifications_required": {
+                  "type": "array",
+                  "items": { "type": "string" },
+                  "description": "Chứng chỉ bắt buộc đối với nurse."
+                },
+                "training_frequency": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Tần suất đào tạo định kỳ (ví dụ: hàng quý)."
+                },
+                "quality_supervision_frequency": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Tần suất kiểm tra chất lượng (ví dụ: hàng tháng)."
+                }
+              },
+              "required": [
+                "committed_hours_per_week",
+                "response_time_commitment",
+                "daily_reports",
+                "certifications_required"
+              ],
+              "description": "Nghĩa vụ của nurse (cam kết thực hiện)."
+            }
+          },
+          "required": [
+            "_id",
+            "service_level",
+            "price_range",
+            "elderly_benefits",
+            "nurse_obligations"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "price_basic",
+            "service_level": "basic",
+            "price_range": { "min": 120000, "max": 150000 },
+            "elderly_benefits": [
+              "Chăm sóc cơ bản (ăn uống, đi lại, vệ sinh cá nhân)",
+              "Nhắc thuốc đúng giờ",
+              "Báo cáo hằng ngày cho người thân"
+            ],
+            "nurse_obligations": {
+              "committed_hours_per_week": 20,
+              "response_time_commitment": "24h",
+              "daily_reports": 1,
+              "certifications_required": ["chăm sóc cơ bản"]
+            }
+          },
+          {
+            "_id": "price_standard",
+            "service_level": "standard",
+            "price_range": { "min": 180000, "max": 220000 },
+            "elderly_benefits": [
+              "Tất cả quyền lợi Basic",
+              "Vật lý trị liệu nhẹ",
+              "Theo dõi dấu hiệu sinh tồn (huyết áp, nhịp tim)",
+              "Cập nhật sức khỏe định kỳ"
+            ],
+            "nurse_obligations": {
+              "committed_hours_per_week": 30,
+              "response_time_commitment": "12h",
+              "daily_reports": 2,
+              "certifications_required": ["sơ cứu", "CPR"],
+              "training_frequency": "hàng quý"
+            }
+          },
+          {
+            "_id": "price_premium",
+            "service_level": "premium",
+            "price_range": { "min": 250000, "max": 320000 },
+            "elderly_benefits": [
+              "Tất cả quyền lợi Standard",
+              "Chăm sóc chuyên sâu (Alzheimer, Palliative Care)",
+              "Tư vấn chăm sóc dinh dưỡng cá nhân hóa",
+              "Kết nối bác sĩ từ xa khi cần"
+            ],
+            "nurse_obligations": {
+              "committed_hours_per_week": 40,
+              "response_time_commitment": "4h",
+              "daily_reports": 3,
+              "certifications_required": [
+                "bằng cấp chuyên môn cao",
+                "ít nhất 2 chứng chỉ chuyên sâu"
+              ],
+              "quality_supervision_frequency": "hàng tháng"
+            }
+          }
+        ]
+      }
+    }
+  },
+  {
+    "_id": "withdraw_requests",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "WithdrawRequestData",
+          "type": "object",
+          "properties": {
+            "_id": {
+              "type": "string",
+              "description": "ID duy nhất của tài liệu do MongoDB tạo."
+            },
+            "withdraw_request_id": {
+              "type": "string",
+              "description": "ID yêu cầu rút tiền (UUID)."
+            },
+            "nurse_id": {
+              "type": "string",
+              "description": "ID của nurse yêu cầu rút tiền (tham chiếu đến collection nurses)."
+            },
+            "amount": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Số tiền muốn rút."
+            },
+            "status": {
+              "type": "string",
+              "enum": ["pending", "approved", "rejected", "completed"],
+              "description": "Trạng thái yêu cầu rút tiền."
+            },
+            "bank_account_info": {
+              "type": "object",
+              "properties": {
+                "account_number": {
+                  "type": "string",
+                  "description": "Số tài khoản ngân hàng."
+                },
+                "bank_name": {
+                  "type": "string",
+                  "description": "Tên ngân hàng."
+                },
+                "crypto_address": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Địa chỉ ví crypto (nếu áp dụng)."
+                }
+              },
+              "description": "Thông tin ngân hàng hoặc ví nhận tiền."
+            },
+            "requested_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời điểm gửi yêu cầu."
+            },
+            "processed_at": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true,
+              "description": "Thời điểm xử lý yêu cầu."
+            }
+          },
+          "required": [
+            "_id",
+            "withdraw_request_id",
+            "nurse_id",
+            "amount",
+            "status",
+            "bank_account_info",
+            "requested_at"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "wr_001",
+            "withdraw_request_id": "wr-uuid-1234567890abcdef",
+            "nurse_id": "nurse_001",
+            "amount": 1000000,
+            "status": "pending",
+            "bank_account_info": {
+              "account_number": "1234567890",
+              "bank_name": "Techcombank",
+              "crypto_address": null
+            },
+            "requested_at": "2025-04-26T09:00:00Z",
+            "processed_at": null
+          }
+        ]
+      }
     },
-    "personal": {
-      "node_info": {
-        "name": "Pricing Management",
-        "author": "LOC",
-        "version": "2.0",
-        "year": "2025"
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "status": "pending"
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "cards",
+                  "localField": "nurse_id",
+                  "foreignField": "user_id",
+                  "as": "card_info"
+                }
+              },
+              {
+                "$addFields": {
+                  "current_balance": {
+                    "$arrayElemAt": ["$card_info.wallet_balance", 0]
+                  }
+                }
+              },
+              {
+                "$match": {
+                  "current_balance": { "$gte": "$amount" }
+                }
+              },
+              {
+                "$addFields": {
+                  "new_balance": {
+                    "$subtract": ["$current_balance", "$amount"]
+                  },
+                  "processed_at": {
+                    "$dateToString": {
+                      "format": "%Y-%m-%dT%H:%M:%SZ",
+                      "date": "$$NOW"
+                    }
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "cards",
+                  "on": "user_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              },
+              {
+                "$merge": {
+                  "into": "withdraw_requests",
+                  "on": "_id",
+                  "whenMatched": [
+                    {
+                      "$set": {
+                        "status": "completed",
+                        "processed_at": "$processed_at"
+                      }
+                    }
+                  ],
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for processing pending withdraw requests, updating wallet balances, and marking requests as completed.",
+            "data_input_from_node": ["withdraw_requests", "cards"],
+            "data_output_to_node": ["cards", "withdraw_requests"]
+          }
+        ]
       }
     }
   },

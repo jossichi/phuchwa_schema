@@ -185,13 +185,42 @@
             },
             "hashed_student_id": {
               "type": "string",
+              "nullable": true,
               "description": "băm ID sinh viên của nurse, liên kết với collection nurses."
             },
             "user_id": {
               "type": "string",
+              "nullable": true,
               "description": "ID người dùng elderly, liên kết với collection elderlies."
             },
-
+            "status": {
+              "type": "string",
+              "enum": ["active", "inactive", "revoked", "lost"],
+              "default": "active",
+              "description": "Trạng thái của thẻ: active (hoạt động), inactive (không hoạt động), revoked (bị thu hồi), lost (bị mất)."
+            },
+            "issued_by": {
+              "type": "string",
+              "default": "Green Card Company",
+              "description": "Thực thể cấp phát thẻ (mặc định là công ty thẻ xanh)."
+            },
+            "issued_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời điểm cấp phát thẻ."
+            },
+            "expired_at": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true,
+              "description": "Ngày hết hạn thẻ (tùy chọn)."
+            },
+            "last_used_at": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true,
+              "description": "Lần cuối sử dụng QR hoặc NFC thẻ."
+            },
             "public_key": {
               "type": "string",
               "description": "Khóa công khai để xác thực chữ ký số."
@@ -203,16 +232,22 @@
             "qr_code_data": {
               "type": "string",
               "description": "Dữ liệu QR code chứa thông tin liên quan đến thẻ."
+            },
+            "signature": {
+              "type": "string",
+              "description": "Chữ ký số được tạo từ hashed_student_id + card_id + user_id."
             }
           },
           "required": [
             "_id",
             "card_id",
-            "hashed_student_id",
-            "role",
+            "status",
+            "issued_by",
+            "issued_at",
             "public_key",
             "private_key_encrypted",
-            "qr_code_data"
+            "qr_code_data",
+            "signature"
           ],
           "additionalProperties": false
         },
@@ -221,21 +256,16 @@
             "_id": "card_001",
             "card_id": "QR789012",
             "hashed_student_id": "STU123456",
-            "role": "nurse",
+            "user_id": null,
+            "status": "active",
+            "issued_by": "Green Card Company",
+            "issued_at": "2023-10-01T12:00:00Z",
+            "expired_at": "2025-10-01T12:00:00Z",
+            "last_used_at": "2023-10-10T08:30:00Z",
             "public_key": "0xabc...xyz",
             "private_key_encrypted": "encrypted_private_key_123",
-            "qr_code_data": "{\"card_id\":\"QR789012\",\"student_id\":\"STU123456\",\"public_key\":\"0xabc...xyz\"}",
-            "created_at": "2023-10-01T12:00:00Z"
-          },
-          {
-            "_id": "card_002",
-            "card_id": "QR987654",
-            "user_id": "user_002",
-            "role": "elderly",
-            "public_key": "0xdef...uvw",
-            "private_key_encrypted": "encrypted_private_key_456",
-            "qr_code_data": "{\"card_id\":\"QR987654\",\"user_id\":\"user_002\",\"public_key\":\"0xdef...uvw\"}",
-            "created_at": "2023-10-02T10:00:00Z"
+            "qr_code_data": "{\"card_id\":\"QR789012\",\"public_key\":\"0xabc...xyz\",\"issued_at\":\"2023-10-01T12:00:00Z\"}",
+            "signature": "generated_signature_001"
           }
         ]
       }
@@ -254,10 +284,36 @@
                 "$addFields": {
                   "role": {
                     "$cond": {
-                      "if": { "$ne": ["$student_id", null] },
+                      "if": { "$ne": ["$hashed_student_id", null] },
                       "then": "nurse",
                       "else": "elderly"
                     }
+                  },
+                  "status": "active",
+                  "issued_by": "Green Card Company",
+                  "issued_at": "$$NOW",
+                  "expired_at": {
+                    "$cond": {
+                      "if": { "$eq": ["$role", "nurse"] },
+                      "then": {
+                        "$add": ["$$NOW", 63072000000]
+                      },
+                      "else": null
+                    }
+                  },
+                  "signature": {
+                    "$concat": ["$hashed_student_id", "$card_id", "$user_id"]
+                  },
+                  "qr_code_data": {
+                    "$concat": [
+                      "{\"card_id\":\"",
+                      "$card_id",
+                      "\",\"public_key\":\"",
+                      "$public_key",
+                      "\",\"issued_at\":\"",
+                      "$$NOW",
+                      "\"}"
+                    ]
                   }
                 }
               },
@@ -270,7 +326,7 @@
                 }
               }
             ],
-            "purpose": "Pipeline for assigning roles based on student_id or user_id.",
+            "purpose": "Pipeline for assigning roles, generating signatures, and encoding QR data.",
             "data_input_from_node": "users",
             "data_output_to_node": "cards"
           }
@@ -302,70 +358,49 @@
               "format": "email",
               "description": "Email của y tá, dùng để xác minh tài khoản."
             },
-            "email_verified": {
-              "type": "boolean",
-              "default": false,
-              "description": "Trạng thái xác minh email. Phải là true để hoàn tất đăng ký."
-            },
-            "student_id": {
-              "type": "string",
-              "nullable": true,
-              "description": "ID sinh viên của y tá (chỉ áp dụng cho nurse)."
-            },
             "card_id": {
               "type": "string",
-              "nullable": true,
               "description": "ID duy nhất của thẻ (có thể là QR code hoặc mã NFC)."
             },
             "hashed_student_id": {
               "type": "string",
-              "nullable": true,
               "description": "Băm ID sinh viên của y tá, liên kết với collection cards."
             },
             "public_key": {
               "type": "string",
-              "nullable": true,
               "description": "Khóa công khai để xác thực chữ ký số."
             },
             "private_key_encrypted": {
               "type": "string",
-              "nullable": true,
               "description": "Khóa riêng tư được mã hóa để bảo mật."
             },
             "qr_code_data": {
               "type": "string",
-              "nullable": true,
               "description": "Dữ liệu QR code chứa thông tin liên quan đến thẻ."
             },
             "gender": {
               "type": "boolean",
-              "nullable": true,
               "description": "Giới tính của y tá (true = male, false = female)."
             },
             "date_of_birth": {
               "type": "string",
               "format": "date",
-              "nullable": true,
               "description": "Ngày sinh của y tá (định dạng YYYY-MM-DD)."
             },
             "university": {
               "type": "string",
-              "nullable": true,
               "description": "Tên trường đại học của y tá."
             },
             "faculty": {
               "type": "string",
-              "nullable": true,
               "description": "Khoa học tập của y tá."
             },
             "degree_level": {
               "type": "string",
-              "nullable": true,
               "description": "Cấp độ học vấn (ví dụ: Bachelor, Master, PhD)."
             },
             "enrollment_year": {
               "type": "number",
-              "nullable": true,
               "description": "Năm nhập học của y tá."
             },
             "avatar_url": {
@@ -375,8 +410,94 @@
             },
             "address": {
               "type": "string",
-              "nullable": true,
               "description": "Địa chỉ thường trú của y tá."
+            },
+            "service_level": {
+              "type": "string",
+              "enum": ["basic", "standard", "premium"],
+              "description": "Mức dịch vụ: basic (cơ bản), standard (tiêu chuẩn), premium (cao cấp)."
+            },
+            "experience_years": {
+              "type": "number",
+              "description": "Số năm kinh nghiệm chăm sóc."
+            },
+            "certifications": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Danh sách chứng chỉ (ví dụ: sơ cấp, điều dưỡng chính thức)."
+            },
+            "average_rating": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 5,
+              "description": "Đánh giá trung bình từ elderly."
+            },
+            "committed_hours_per_week": {
+              "type": "number",
+              "description": "Số giờ làm việc cam kết/tuần."
+            },
+            "special_skills": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Kỹ năng đặc biệt (ví dụ: vật lý trị liệu cơ bản, sơ cứu)."
+            },
+            "quality_supervision_frequency": {
+              "type": "string",
+              "enum": ["quarterly", "monthly", "weekly"],
+              "description": "Tần suất giám sát chất lượng: hàng quý, hàng tháng, hàng tuần."
+            },
+            "response_time_commitment": {
+              "type": "string",
+              "enum": ["24h", "12h", "4h"],
+              "description": "Cam kết phản hồi yêu cầu: trong 24h, 12h hoặc 4h."
+            },
+            "availability": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "start_time": { "type": "string", "format": "date-time" },
+                  "end_time": { "type": "string", "format": "date-time" }
+                }
+              },
+              "description": "Thời gian rảnh của nurse."
+            },
+            "isAvailableForMatching": {
+              "type": "boolean",
+              "default": true,
+              "description": "Trạng thái sẵn sàng matching."
+            },
+            "gpa": {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 4.0,
+              "description": "Điểm tốt nghiệp chuyên môn y tế (GPA)."
+            },
+            "total_bookings": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Tổng số lượt được elderly booking."
+            },
+            "total_feedback_count": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "Tổng số feedback từ elderly."
+            },
+
+            "ratio_feedbacks": {
+              "type": "number",
+              "minimum": 0,
+              "description": "Tỷ lệ feedback tích cực so với tiêu cực (positive/negative)."
+            },
+            "specializations": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Các chuyên môn đặc biệt (ví dụ: Alzheimer care, Physical Therapy)."
+            },
+            "certificates": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Danh sách chứng chỉ liên quan (ví dụ: sơ cứu, CPR, chăm sóc đặc biệt)."
             },
             "updated_at": {
               "$dateToString": {
@@ -390,26 +511,80 @@
             "user_id",
             "email",
             "email_verified",
+            "service_level",
+            "experience_years",
+            "certifications",
+            "average_rating",
+            "committed_hours_per_week",
+            "special_skills",
+            "quality_supervision_frequency",
+            "response_time_commitment",
+            "availability",
+            "isAvailableForMatching",
             "updated_at"
           ],
           "additionalProperties": false
         },
         "jsonSample": [
           {
-            "_id": "1",
-            "user_id": "550e8400-e29b-41d4-a716-446655440000",
-            "role": "nurse",
+            "_id": "662b2f3d5f1e4c8a3a9d7e2c",
+            "user_id": "f1a1b82c-9a94-4e39-b021-02b9b12c6ef1",
             "email": "nurse.jane@example.com",
-            "email_verified": true,
-            "student_id": "STU123456",
-            "gender": true,
-            "date_of_birth": "2000-05-15",
-            "university": "Harvard University",
-            "faculty": "Medicine",
+            "card_id": "CARD123456789",
+            "hashed_student_id": "b8c3a8c2f2d9b4f0d5c9f2e3b4d1e2f0",
+            "public_key": "04d2a8c5bfa1c3e1f9d4b8d1e7f5b2a4d3c8e5f6b2d9e7f1c8b2f4d1e3b9c5d7e3",
+            "private_key_encrypted": "ENCRYPTED_PRIVATE_KEY_STRING",
+            "qr_code_data": "nurse:662b2f3d5f1e4c8a3a9d7e2c",
+            "gender": false,
+            "date_of_birth": "1995-06-15",
+            "university": "Medical University of City",
+            "faculty": "Nursing Science",
             "degree_level": "Bachelor",
-            "enrollment_year": 2018,
-            "avatar_url": "https://example.com/avatar.jpg",
-            "address": "123 Main Street, Boston, MA"
+            "enrollment_year": 2014,
+            "avatar_url": "https://cdn.example.com/avatar/hashedavatar123.png",
+            "address": "123 Main St, District 1, Ho Chi Minh City, Vietnam",
+            "service_level": "premium",
+            "experience_years": 5,
+            "certifications": [
+              "Registered Nurse Certification",
+              "First Aid",
+              "Advanced Cardiac Life Support"
+            ],
+            "average_rating": 4.7,
+            "committed_hours_per_week": 40,
+            "special_skills": [
+              "Basic Physical Therapy",
+              "Emergency Response",
+              "Alzheimer Care"
+            ],
+            "quality_supervision_frequency": "monthly",
+            "response_time_commitment": "12h",
+            "availability": [
+              {
+                "start_time": "2025-04-27T08:00:00Z",
+                "end_time": "2025-04-27T18:00:00Z"
+              },
+              {
+                "start_time": "2025-04-28T08:00:00Z",
+                "end_time": "2025-04-28T18:00:00Z"
+              }
+            ],
+            "isAvailableForMatching": true,
+            "gpa": 3.8,
+            "total_bookings": 120,
+            "total_feedback_count": 110,
+            "ratio_feedbacks": 4.5,
+            "specializations": [
+              "Alzheimer Care",
+              "Physical Therapy",
+              "Palliative Care"
+            ],
+            "certificates": [
+              "CPR Certification",
+              "Wound Care Certification",
+              "Elderly Care Certification"
+            ],
+            "updated_at": "2025-04-26T17:00:00Z"
           }
         ]
       }
@@ -471,7 +646,108 @@
                   }
                 }
               },
-
+              {
+                "$lookup": {
+                  "from": "feedbacks",
+                  "localField": "_id",
+                  "foreignField": "to_user_id",
+                  "as": "feedback_details"
+                }
+              },
+              {
+                "$addFields": {
+                  "total_feedback_count": { "$size": "$feedback_details" },
+                  "average_rating": {
+                    "$avg": "$feedback_details.rating"
+                  },
+                  "positive_feedback_count": {
+                    "$size": {
+                      "$filter": {
+                        "input": "$feedback_details",
+                        "as": "feedback",
+                        "cond": {
+                          "$eq": [
+                            "$$feedback.ai_sentiment_analysis",
+                            "positive"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "negative_feedback_count": {
+                    "$size": {
+                      "$filter": {
+                        "input": "$feedback_details",
+                        "as": "feedback",
+                        "cond": {
+                          "$eq": [
+                            "$$feedback.ai_sentiment_analysis",
+                            "negative"
+                          ]
+                        }
+                      }
+                    }
+                  },
+                  "ratio_feedbacks": {
+                    "$cond": {
+                      "if": { "$gt": ["$negative_feedback_count", 0] },
+                      "then": {
+                        "$divide": [
+                          "$positive_feedback_count",
+                          "$negative_feedback_count"
+                        ]
+                      },
+                      "else": "$positive_feedback_count"
+                    }
+                  }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "matching",
+                  "localField": "_id",
+                  "foreignField": "nurse_id",
+                  "as": "booking_details"
+                }
+              },
+              {
+                "$addFields": {
+                  "total_bookings": { "$size": "$booking_details" }
+                }
+              },
+              {
+                "$addFields": {
+                  "service_level": {
+                    "$switch": {
+                      "branches": [
+                        {
+                          "case": {
+                            "$and": [
+                              { "$gte": ["$gpa", 3.5] },
+                              { "$gte": ["$average_rating", 4.5] },
+                              { "$gte": ["$ratio_feedbacks", 3] },
+                              { "$in": ["Registered Nurse", "$certificates"] }
+                            ]
+                          },
+                          "then": "premium"
+                        },
+                        {
+                          "case": {
+                            "$and": [
+                              { "$gte": ["$gpa", 3.0] },
+                              { "$gte": ["$average_rating", 4.0] },
+                              { "$gte": ["$ratio_feedbacks", 2] },
+                              { "$in": ["Basic Life Support", "$certificates"] }
+                            ]
+                          },
+                          "then": "standard"
+                        }
+                      ],
+                      "default": "basic"
+                    }
+                  }
+                }
+              },
               {
                 "$project": {
                   "_id": 1,
@@ -492,6 +768,17 @@
                   "enrollment_year": 1,
                   "avatar_url": "$hashed_avatar_url",
                   "address": 1,
+                  "gpa": 1,
+                  "total_bookings": 1,
+                  "total_feedback_count": 1,
+                  "average_rating": 1,
+                  "ratio_feedbacks": 1,
+                  "specializations": 1,
+                  "certificates": 1,
+                  "service_level": 1,
+                  "experience_years": 1,
+                  "availability": 1,
+                  "isAvailableForMatching": 1,
                   "updated_at": 1
                 }
               },
@@ -957,8 +1244,7 @@
                   "Nhiễm trùng huyết",
                   "Suy tim"
                 ],
-                "correct_answer": "Phản ứng dị ứng nghiêm trọng",
-                "user_answer": "Phản ứng dị ứng nghiêm trọng"
+                "correct_answer": "Phản ứng dị ứng nghiêm trọng"
               },
               {
                 "question": "Loại thuốc nào thường được sử dụng đầu tiên trong trường hợp ngừng tim?",
@@ -969,8 +1255,7 @@
                   "Amiodarone",
                   "Lidocaine"
                 ],
-                "correct_answer": "Adrenaline",
-                "user_answer": "Adrenaline"
+                "correct_answer": "Adrenaline"
               },
               {
                 "question": "Kỹ thuật CPR tiêu chuẩn yêu cầu tỷ lệ ép ngực là bao nhiêu lần mỗi phút?",
@@ -993,8 +1278,7 @@
                   "Khó nói",
                   "Mất thăng bằng"
                 ],
-                "correct_answer": "Đau ngực",
-                "user_answer": "Đau ngực"
+                "correct_answer": "Đau ngực"
               },
               {
                 "question": "Điều nào sau đây là chức năng chính của hệ bạch huyết?",
@@ -1005,11 +1289,9 @@
                   "Điều hòa huyết áp",
                   "Giảm cholesterol"
                 ],
-                "correct_answer": "Bảo vệ cơ thể khỏi nhiễm trùng",
-                "user_answer": "Bảo vệ cơ thể khỏi nhiễm trùng"
+                "correct_answer": "Bảo vệ cơ thể khỏi nhiễm trùng"
               }
             ],
-            "score": 5,
             "timestamp": "2023-10-01T12:00:00Z"
           }
         ]
@@ -1047,7 +1329,6 @@
                 "type": "object",
                 "properties": {
                   "question": { "type": "string" },
-
                   "options": {
                     "type": "array",
                     "minItems": 4,
@@ -1060,6 +1341,7 @@
                 },
                 "required": [
                   "question",
+                  "difficulty",
                   "options",
                   "correct_answer",
                   "user_answer",
@@ -1067,7 +1349,9 @@
                 ],
                 "additionalProperties": false
               }
-            }
+            },
+            "current_score": { "type": "number", "minimum": 0, "maximum": 100 },
+            "average_score": { "type": "number", "minimum": 0, "maximum": 100 }
           },
           "required": [
             "_id",
@@ -1076,7 +1360,9 @@
             "correct_answers",
             "score",
             "timestamp",
-            "question_details"
+            "question_details",
+            "current_score",
+            "average_score"
           ],
           "additionalProperties": false
         },
@@ -1087,11 +1373,12 @@
             "total_questions": 5,
             "correct_answers": 4,
             "score": 80,
+            "current_score": 80,
+            "average_score": 80,
             "timestamp": "2023-10-01T12:00:00Z",
             "question_details": [
               {
                 "question": "Điều gì là nguyên nhân chính gây ra sốc phản vệ?",
-
                 "options": [
                   "Viêm phổi",
                   "Phản ứng dị ứng nghiêm trọng",
@@ -1104,7 +1391,6 @@
               },
               {
                 "question": "Loại thuốc nào thường được sử dụng đầu tiên trong trường hợp ngừng tim?",
-
                 "options": [
                   "Adrenaline",
                   "Atropine",
@@ -1169,11 +1455,43 @@
               },
               {
                 "$addFields": {
-                  "score": {
+                  "current_score": {
                     "$multiply": [
                       { "$divide": ["$correct_answers", "$total_questions"] },
                       100
                     ]
+                  }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "test_results",
+                  "localField": "attempt_id",
+                  "foreignField": "attempt_id",
+                  "as": "previous_attempts"
+                }
+              },
+              {
+                "$addFields": {
+                  "average_score": {
+                    "$cond": {
+                      "if": { "$gt": [{ "$size": "$previous_attempts" }, 0] },
+                      "then": {
+                        "$divide": [
+                          {
+                            "$sum": {
+                              "$map": {
+                                "input": "$previous_attempts",
+                                "as": "attempt",
+                                "in": "$$attempt.current_score"
+                              }
+                            }
+                          },
+                          { "$size": "$previous_attempts" }
+                        ]
+                      },
+                      "else": "$current_score"
+                    }
                   }
                 }
               },
@@ -1184,6 +1502,8 @@
                   "total_questions": 1,
                   "correct_answers": 1,
                   "score": 1,
+                  "current_score": 1,
+                  "average_score": 1,
                   "timestamp": 1,
                   "question_details": 1
                 }
@@ -1197,7 +1517,7 @@
                 }
               }
             ],
-            "purpose": "Pipeline for calculating and storing test results from test_attempts.",
+            "purpose": "Pipeline for calculating and storing test results with current and average scores.",
             "data_input_from_node": "test_attempts",
             "data_output_to_node": "test_results"
           }
@@ -1507,6 +1827,59 @@
               "enum": ["basic", "standard", "premium"],
               "description": "Mức dịch vụ: basic (cơ bản), standard (tiêu chuẩn), premium (cao cấp)."
             },
+            "booking_time": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "start_time": { "type": "string", "format": "date-time" },
+                  "end_time": { "type": "string", "format": "date-time" }
+                }
+              },
+              "description": "Khung giờ booking được chọn bởi elderly."
+            },
+            "contract_status": {
+              "type": "object",
+              "properties": {
+                "elderly_signature": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Chữ ký điện tử của elderly."
+                },
+                "nurse_signature": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Chữ ký điện tử của nurse."
+                },
+                "contract_hash": {
+                  "type": "string",
+                  "nullable": true,
+                  "description": "Hash của hợp đồng thông minh."
+                },
+                "is_signed": {
+                  "type": "boolean",
+                  "default": false,
+                  "description": "Trạng thái ký hợp đồng."
+                }
+              },
+              "required": [
+                "elderly_signature",
+                "nurse_signature",
+                "contract_hash",
+                "is_signed"
+              ],
+              "additionalProperties": false
+            },
+            "violation_report": {
+              "type": "object",
+              "nullable": true,
+              "properties": {
+                "reported_by": { "type": "string" },
+                "reason": { "type": "string" },
+                "timestamp": { "type": "string", "format": "date-time" }
+              },
+              "description": "Báo cáo vi phạm hợp đồng."
+            },
             "isMatched": { "type": "boolean", "default": false },
             "matchedAt": { "type": "string", "format": "date-time" },
             "resetAt": { "type": "string", "format": "date-time" }
@@ -1517,7 +1890,9 @@
             "elderly_id",
             "service_level",
             "isMatched",
-            "resetAt"
+            "resetAt",
+            "booking_time",
+            "contract_status"
           ],
           "additionalProperties": false
         },
@@ -1541,8 +1916,106 @@
             "pipeline": [
               {
                 "$match": {
-                  "isMatched": false,
-                  "service_level": "basic"
+                  "isMatched": false
+                }
+              },
+              {
+                "$addFields": {
+                  "contract_status": {
+                    "contract_hash": {
+                      "$arrayElemAt": ["$contract_details.contract_hash", 0]
+                    },
+                    "is_signed": {
+                      "$cond": {
+                        "if": {
+                          "$and": [
+                            {
+                              "$ne": [
+                                {
+                                  "$arrayElemAt": [
+                                    "$contract_details.signed_by_elderly",
+                                    0
+                                  ]
+                                },
+                                null
+                              ]
+                            },
+                            {
+                              "$ne": [
+                                {
+                                  "$arrayElemAt": [
+                                    "$contract_details.signed_by_nurse",
+                                    0
+                                  ]
+                                },
+                                null
+                              ]
+                            }
+                          ]
+                        },
+                        "then": true,
+                        "else": false
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "$match": {
+                  "contract_status.is_signed": true
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "nurses",
+                  "localField": "nurse_id",
+                  "foreignField": "_id",
+                  "as": "availableNurses"
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "elderlies",
+                  "localField": "elderly_id",
+                  "foreignField": "_id",
+                  "as": "availableElderlies"
+                }
+              },
+              {
+                "$addFields": {
+                  "matchedPairs": {
+                    "$map": {
+                      "input": "$availableElderlies",
+                      "as": "elderly",
+                      "in": {
+                        "elderly_id": "$$elderly._id",
+                        "nurse_id": {
+                          "$arrayElemAt": [
+                            {
+                              "$filter": {
+                                "input": "$availableNurses",
+                                "as": "nurse",
+                                "cond": {
+                                  "$and": [
+                                    {
+                                      "$eq": [
+                                        "$$nurse.isAvailableForMatching",
+                                        true
+                                      ]
+                                    },
+                                    {
+                                      "$lte": ["$$nurse.distanceToElderly", 10]
+                                    }
+                                  ]
+                                }
+                              }
+                            },
+                            0
+                          ]
+                        }
+                      }
+                    }
+                  }
                 }
               },
               {
@@ -1555,8 +2028,8 @@
               },
               {
                 "$addFields": {
-                  "nurse_score": {
-                    "$arrayElemAt": ["$nurse_test_results.score", 0]
+                  "average_score": {
+                    "$arrayElemAt": ["$nurse_test_results.average_score", 0]
                   }
                 }
               },
@@ -1676,6 +2149,307 @@
     "personal": {
       "node_info": {
         "name": "Matching Management",
+        "author": "LOC",
+        "version": "2.0",
+        "year": "2025"
+      }
+    }
+  },
+
+  {
+    "_id": "feedbacks",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "FeedbackData",
+          "type": "object",
+          "properties": {
+            "_id": { "type": "string" },
+            "from_user_id": {
+              "type": "string",
+              "description": "ID của người gửi feedback (elderly)."
+            },
+            "to_user_id": {
+              "type": "string",
+              "description": "ID của người nhận feedback (nurse)."
+            },
+            "service_id": {
+              "type": "string",
+              "description": "ID của dịch vụ/chăm sóc liên quan."
+            },
+            "rating": {
+              "type": "number",
+              "minimum": 1,
+              "maximum": 5,
+              "description": "Điểm đánh giá từ 1–5 sao."
+            },
+            "title": {
+              "type": "string",
+              "nullable": true,
+              "description": "Tiêu đề ngắn (tuỳ chọn)."
+            },
+            "comment": {
+              "type": "string",
+              "description": "Nội dung nhận xét."
+            },
+            "createdAt": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời gian gửi feedback."
+            },
+            "is_verified": {
+              "type": "boolean",
+              "default": false,
+              "description": "Feedback có được xác minh là hợp lệ không."
+            },
+            "report_flag": {
+              "type": "boolean",
+              "default": false,
+              "description": "Có bị báo cáo là giả mạo hoặc không trung thực không."
+            },
+            "report_reason": {
+              "type": "string",
+              "nullable": true,
+              "description": "Lý do nếu bị report."
+            },
+            "service_level": {
+              "type": "string",
+              "enum": ["basic", "standard", "premium"],
+              "description": "Mức dịch vụ liên quan đến feedback."
+            },
+            "ai_sentiment_analysis": {
+              "type": "string",
+              "enum": ["positive", "negative", "neutral", "pending"],
+              "description": "Kết quả phân tích cảm xúc từ model AI."
+            }
+          },
+          "required": [
+            "_id",
+            "from_user_id",
+            "to_user_id",
+            "service_id",
+            "rating",
+            "comment",
+            "createdAt",
+            "is_verified",
+            "report_flag",
+            "service_level"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "feedback_001",
+            "from_user_id": "elderly_001",
+            "to_user_id": "nurse_001",
+            "service_id": "service_001",
+            "rating": 4,
+            "title": "Chăm sóc tốt",
+            "comment": "Y tá rất nhiệt tình và chu đáo.",
+            "createdAt": "2023-10-01T12:00:00Z",
+            "is_verified": true,
+            "report_flag": false,
+            "report_reason": null,
+            "service_level": "standard",
+            "ai_sentiment_analysis": "positive"
+          }
+        ]
+      }
+    },
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "from_user_id": { "$exists": true },
+                  "to_user_id": { "$exists": true },
+                  "service_id": { "$exists": true }
+                }
+              },
+              {
+                "$addFields": {
+                  "createdAt": "$$NOW",
+                  "is_verified": false,
+                  "report_flag": false,
+                  "ai_sentiment_analysis": "pending"
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "matching",
+                  "localField": "service_id",
+                  "foreignField": "_id",
+                  "as": "service_matching"
+                }
+              },
+              {
+                "$addFields": {
+                  "service_level": {
+                    "$arrayElemAt": ["$service_matching.service_level", 0]
+                  }
+                }
+              },
+              {
+                "$project": {
+                  "_id": 1,
+                  "from_user_id": 1,
+                  "to_user_id": 1,
+                  "service_id": 1,
+                  "rating": 1,
+                  "title": 1,
+                  "comment": 1,
+                  "createdAt": 1,
+                  "is_verified": 1,
+                  "report_flag": 1,
+                  "report_reason": 1,
+                  "service_level": 1,
+                  "ai_sentiment_analysis": 1
+                }
+              },
+              {
+                "$merge": {
+                  "into": "feedbacks",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for storing and processing feedbacks with AI sentiment analysis.",
+            "data_input_from_node": ["elderlies", "nurses", "matching"],
+            "data_output_to_node": "feedbacks"
+          },
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "ai_sentiment_analysis": "pending"
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "feedbacks",
+                  "localField": "_id",
+                  "foreignField": "_id",
+                  "as": "current_feedback"
+                }
+              },
+              {
+                "$addFields": {
+                  "comment_to_analyze": {
+                    "$arrayElemAt": ["$current_feedback.comment", 0]
+                  }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "ai_sentiment_results",
+                  "let": { "comment": "$comment_to_analyze" },
+                  "pipeline": [
+                    {
+                      "$addFields": {
+                        "sentiment": {
+                          "$function": {
+                            "body": "function(comment) { return analyzeSentiment(comment); }",
+                            "args": ["$$comment"],
+                            "lang": "js"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "as": "ai_result"
+                }
+              },
+              {
+                "$addFields": {
+                  "ai_sentiment_analysis": {
+                    "$arrayElemAt": ["$ai_result.sentiment", 0]
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "feedbacks",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for sending comments to AI endpoint and updating sentiment analysis results.",
+            "data_input_from_node": "feedbacks",
+            "data_output_to_node": "feedbacks"
+          },
+          {
+            "pipeline": [
+              {
+                "$match": {
+                  "ai_sentiment_analysis": "pending"
+                }
+              },
+              {
+                "$addFields": {
+                  "api_endpoint": "/add_comment",
+                  "api_method": "POST",
+                  "api_payload": {
+                    "comment": "$comment"
+                  }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "http_requests",
+                  "let": {
+                    "endpoint": "$api_endpoint",
+                    "method": "$api_method",
+                    "payload": "$api_payload"
+                  },
+                  "pipeline": [
+                    {
+                      "$addFields": {
+                        "response": {
+                          "$function": {
+                            "body": "function(endpoint, method, payload) { return sendHttpRequest(endpoint, method, payload); }",
+                            "args": ["$$endpoint", "$$method", "$$payload"],
+                            "lang": "js"
+                          }
+                        }
+                      }
+                    }
+                  ],
+                  "as": "api_response"
+                }
+              },
+              {
+                "$addFields": {
+                  "ai_sentiment_analysis": {
+                    "$arrayElemAt": ["$api_response.response.sentiment", 0]
+                  }
+                }
+              },
+              {
+                "$merge": {
+                  "into": "feedbacks",
+                  "on": "_id",
+                  "whenMatched": "merge",
+                  "whenNotMatched": "insert"
+                }
+              }
+            ],
+            "purpose": "Pipeline for sending comments to /add_comment endpoint and updating sentiment analysis results.",
+            "data_input_from_node": "feedbacks",
+            "data_output_to_node": "feedbacks"
+          }
+        ]
+      }
+    },
+    "personal": {
+      "node_info": {
+        "name": "Feedback Management",
         "author": "LOC",
         "version": "2.0",
         "year": "2025"

@@ -231,7 +231,8 @@
             },
             "qr_code_data": {
               "type": "string",
-              "description": "Dữ liệu QR code chứa thông tin liên quan đến thẻ."
+              "description": "Hình ảnh QR code được mã hóa dưới dạng Base64 (ví dụ: data:image/png;base64,iVBORw0KG...).",
+              "pattern": "^data:image\\/([a-zA-Z+\\-\\.]+);base64,[a-zA-Z0-9+/=]+$"
             },
             "signature": {
               "type": "string",
@@ -264,7 +265,7 @@
             "last_used_at": "2023-10-10T08:30:00Z",
             "public_key": "0xabc...xyz",
             "private_key_encrypted": "encrypted_private_key_123",
-            "qr_code_data": "{\"card_id\":\"QR789012\",\"public_key\":\"0xabc...xyz\",\"issued_at\":\"2023-10-01T12:00:00Z\"}",
+            "qr_code_data": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAVQAAAFUCAYAAAB7ksS1AAAb…",
             "signature": "generated_signature_001"
           }
         ]

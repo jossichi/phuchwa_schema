@@ -107,6 +107,45 @@
                 }
               },
               {
+                "$addFields": {
+                  "user_id": {
+                    "$cond": {
+                      "if": { "$eq": ["$role", "nurse"] },
+                      "then": {
+                        "$concat": [
+                          { "$substr": ["$hashed_student_id", 0, 5] },
+                          "-",
+                          {
+                            "$toString": {
+                              "$uuid": { "$concat": ["nurse-", "$$NOW"] }
+                            }
+                          }
+                        ]
+                      },
+                      "else": {
+                        "$concat": [
+                          "EL-",
+                          "$gender",
+                          "-",
+                          {
+                            "$dateToString": {
+                              "format": "%Y%m%d",
+                              "date": "$created_at"
+                            }
+                          },
+                          "-",
+                          {
+                            "$toString": {
+                              "$uuid": { "$concat": ["elderly-", "$$NOW"] }
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              {
                 "$facet": {
                   "nurse_data": [
                     {

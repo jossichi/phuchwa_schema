@@ -3813,6 +3813,425 @@
       }
     }
   },
+  {
+    "_id": "collecction_emergency_alerts",
+    "public": {
+      "node_data": {
+        "jsonSchema": {
+          "$schema": "http://json-schema.org/draft-07/schema#",
+          "title": "EmergencyAlertData",
+          "type": "object",
+          "properties": {
+            "_id": {
+              "type": "string",
+              "description": "ID duy nhất của tài liệu do MongoDB tự động sinh."
+            },
+            "alert_code": {
+              "type": "string",
+              "description": "Mã cảnh báo gồm 3 ký số + thời gian để định danh duy nhất (VD: NGA202510051430). Người dùng chỉ cần nhập 3 ký số đầu tiên."
+            },
+            "elderly_id": {
+              "type": "string",
+              "description": "ID người cao tuổi gặp sự cố (tham chiếu đến collection elderlies)."
+            },
+            "nurse_id": {
+              "type": "string",
+              "nullable": true,
+              "description": "ID y tá gửi tín hiệu khẩn cấp (có thể null nếu hệ thống tự phát hiện)."
+            },
+            "triggered_by": {
+              "type": "string",
+              "enum": ["y_ta", "he_thong", "nguoi_nha"],
+              "description": "Nguồn kích hoạt cảnh báo (y tá, hệ thống hoặc người nhà)."
+            },
+            "incident_type": {
+              "type": "string",
+              "enum": ["nga", "mat_y_thuc", "dau_timb", "kho_tho", "khac"],
+              "description": "Loại sự cố xảy ra (ví dụ: ngã, mất ý thức, đau tim...)."
+            },
+            "description": {
+              "type": "string",
+              "description": "Mô tả chi tiết tình huống khẩn cấp."
+            },
+            "location": {
+              "type": "object",
+              "properties": {
+                "type": {
+                  "type": "string",
+                  "default": "Point",
+                  "description": "Kiểu dữ liệu vị trí GeoJSON."
+                },
+                "coordinates": {
+                  "type": "array",
+                  "items": { "type": "number" },
+                  "description": "Tọa độ [longitude, latitude]."
+                }
+              },
+              "description": "Vị trí xảy ra sự cố (GeoJSON)."
+            },
+            "status": {
+              "type": "string",
+              "enum": [
+                "moi_gui",
+                "da_nhan",
+                "dang_xu_ly",
+                "da_giai_quyet",
+                "huy"
+              ],
+              "description": "Trạng thái cảnh báo."
+            },
+            "received_at": {
+              "type": "string",
+              "format": "date-time",
+              "nullable": true,
+              "description": "Thời điểm hệ thống nhận được tín hiệu."
+            },
+            "hospital_assigned": {
+              "type": "object",
+              "nullable": true,
+              "description": "Thông tin bệnh viện được phân công xử lý.",
+              "properties": {
+                "hospital_id": { "type": "string" },
+                "name": { "type": "string" },
+                "address": { "type": "string" },
+                "contact_phone": { "type": "string" },
+                "distance_km": { "type": "number" }
+              }
+            },
+            "medical_facility_notified": {
+              "type": "boolean",
+              "default": false,
+              "description": "Cơ sở y tế đã được thông báo chưa?"
+            },
+            "notified_contacts": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "contact_name": { "type": "string" },
+                  "contact_phone": { "type": "string" },
+                  "contact_relation": { "type": "string" }
+                }
+              },
+              "description": "Danh sách người thân đã được thông báo."
+            },
+            "created_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời gian tạo cảnh báo."
+            },
+            "updated_at": {
+              "type": "string",
+              "format": "date-time",
+              "description": "Thời gian cập nhật cuối cùng."
+            },
+            "action_logs": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "timestamp": { "type": "string", "format": "date-time" },
+                  "action": { "type": "string" },
+                  "performed_by": {
+                    "type": "object",
+                    "properties": {
+                      "user_id": { "type": "string" },
+                      "name": { "type": "string" },
+                      "role": { "type": "string" }
+                    }
+                  },
+                  "details": { "type": "string", "nullable": true }
+                }
+              },
+              "description": "Nhật ký hành động theo dõi quá trình xử lý cảnh báo."
+            }
+          },
+          "required": [
+            "_id",
+            "alert_code",
+            "elderly_id",
+            "incident_type",
+            "status",
+            "created_at"
+          ],
+          "additionalProperties": false
+        },
+        "jsonSample": [
+          {
+            "_id": "60c72b2f9b1e8c001c8e4d3a",
+            "alert_code": "NGA202510051430",
+            "elderly_id": "60c72b2f9b1e8c001c8e4d3b",
+            "nurse_id": null,
+            "triggered_by": "nguoi_nha",
+            "incident_type": "nga",
+            "description": "Người cao tuổi bị ngã tại nhà.",
+            "location": {
+              "type": "Point",
+              "coordinates": [106.629664, 10.823098]
+            },
+            "status": "moi_gui",
+            "received_at": null,
+            "hospital_assigned": null,
+            "medical_facility_notified": false,
+            "notified_contacts": [],
+            "created_at": "2025-10-05T14:30:00Z",
+            "updated_at": "2025-10-05T14:30:00Z",
+            "action_logs": []
+          }
+        ]
+      }
+    },
+
+    "private": {
+      "node_function": {
+        "edge": [
+          {
+            "pipeline": [
+              {
+                "$set": {
+                  "status": { "$literal": "moi_gui" },
+                  "created_at": {
+                    "$dateFromString": { "dateString": "$created_at" }
+                  },
+                  "updated_at": {
+                    "$dateFromString": { "dateString": "$created_at" }
+                  },
+                  "received_at": null,
+                  "medical_facility_notified": false,
+                  "action_logs": []
+                }
+              },
+              {
+                "$addFields": {
+                  "is_valid_code": {
+                    "$cond": [
+                      {
+                        "$regexMatch": {
+                          "input": "$alert_code",
+                          "regex": "/^[A-Z]{3}\\d{12}/"
+                        }
+                      },
+                      true,
+                      false
+                    ]
+                  }
+                }
+              },
+              {
+                "$match": {
+                  "is_valid_code": true
+                }
+              },
+              {
+                "$set": {
+                  "status": { "$literal": "da_nhan" },
+                  "received_at": "$$NOW",
+                  "updated_at": "$$NOW"
+                }
+              },
+              {
+                "$setWindowFields": {
+                  "output": {
+                    "action_logs": {
+                      "$document": {
+                        "array": {
+                          "$concatArrays": [
+                            "$action_logs",
+                            [
+                              {
+                                "timestamp": "$$NOW",
+                                "action": "received",
+                                "performed_by": {
+                                  "user_id": "system",
+                                  "name": "Hệ thống",
+                                  "role": "auto"
+                                },
+                                "details": "Cảnh báo đã được hệ thống nhận."
+                              }
+                            ]
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "hospitals",
+                  "let": { "location": "$location" },
+                  "pipeline": [
+                    {
+                      "$geoNear": {
+                        "near": "$$location",
+                        "distanceField": "distance",
+                        "maxDistance": 10000,
+                        "query": { "availability": true },
+                        "spherical": true
+                      }
+                    },
+                    {
+                      "$limit": 1
+                    }
+                  ],
+                  "as": "closest_hospital"
+                }
+              },
+              {
+                "$set": {
+                  "hospital_assigned": {
+                    "$cond": [
+                      { "$gt": [{ "$size": "$closest_hospital" }, 0] },
+                      {
+                        "hospital_id": {
+                          "$arrayElemAt": ["$closest_hospital._id", 0]
+                        },
+                        "name": {
+                          "$arrayElemAt": ["$closest_hospital.name", 0]
+                        },
+                        "address": {
+                          "$arrayElemAt": ["$closest_hospital.address", 0]
+                        },
+                        "contact_phone": {
+                          "$arrayElemAt": ["$closest_hospital.contact_phone", 0]
+                        },
+                        "distance_km": {
+                          "$divide": [
+                            {
+                              "$arrayElemAt": ["$closest_hospital.distance", 0]
+                            },
+                            1000
+                          ]
+                        }
+                      },
+                      null
+                    ]
+                  },
+                  "medical_facility_notified": {
+                    "$cond": [
+                      { "$ne": ["$hospital_assigned", null] },
+                      true,
+                      false
+                    ]
+                  },
+                  "status": {
+                    "$cond": [
+                      { "$ne": ["$hospital_assigned", null] },
+                      "dang_xu_ly",
+                      "huy"
+                    ]
+                  },
+                  "updated_at": "$$NOW"
+                }
+              },
+              {
+                "$setWindowFields": {
+                  "output": {
+                    "action_logs": {
+                      "$document": {
+                        "array": {
+                          "$cond": [
+                            { "$ne": ["$hospital_assigned", null] },
+                            {
+                              "$concatArrays": [
+                                "$action_logs",
+                                [
+                                  {
+                                    "timestamp": "$$NOW",
+                                    "action": "assigned_to_hospital",
+                                    "performed_by": {
+                                      "user_id": "system",
+                                      "name": "Hệ thống",
+                                      "role": "auto"
+                                    },
+                                    "details": {
+                                      "$concat": [
+                                        "Đã gửi hồ sơ tới bệnh viện ",
+                                        "$hospital_assigned.name",
+                                        ", cách ",
+                                        {
+                                          "$toString": "$hospital_assigned.distance_km"
+                                        },
+                                        " km."
+                                      ]
+                                    }
+                                  }
+                                ]
+                              ]
+                            },
+                            "$action_logs"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "$lookup": {
+                  "from": "elderlies",
+                  "localField": "elderly_id",
+                  "foreignField": "_id",
+                  "as": "elderly_info"
+                }
+              },
+              {
+                "$unwind": {
+                  "path": "$elderly_info",
+                  "preserveNullAndEmptyArrays": true
+                }
+              },
+              {
+                "$set": {
+                  "notified_contacts": {
+                    "$cond": [
+                      { "$ne": ["$elderly_info.emergency_contacts", []] },
+                      "$elderly_info.emergency_contacts",
+                      []
+                    ]
+                  }
+                }
+              },
+              {
+                "$setWindowFields": {
+                  "output": {
+                    "action_logs": {
+                      "$document": {
+                        "array": {
+                          "$cond": [
+                            { "$eq": ["$hospital_assigned", null] },
+                            {
+                              "$concatArrays": [
+                                "$action_logs",
+                                [
+                                  {
+                                    "timestamp": "$$NOW",
+                                    "action": "cancelled",
+                                    "performed_by": {
+                                      "user_id": "system",
+                                      "name": "Hệ thống",
+                                      "role": "auto"
+                                    },
+                                    "details": "Không tìm thấy bệnh viện gần nhất để xử lý."
+                                  }
+                                ]
+                              ]
+                            },
+                            "$action_logs"
+                          ]
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            ],
+            "purpose": "Xử lý cảnh báo khẩn cấp cho người cao tuổi"
+          }
+        ]
+      }
+    }
+  },
 
   {
     "_id": "system",
